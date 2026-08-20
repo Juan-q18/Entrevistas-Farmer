@@ -1,0 +1,7 @@
+node_modules/
+server/data/
+client/dist/
+*.log
+mi-cv.pdf
+server/body*.json
+server/scripts/
