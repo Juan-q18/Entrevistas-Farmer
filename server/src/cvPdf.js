@@ -25,17 +25,26 @@ const DENSITY_LEVELS = [
   { scale: 0.74, margin: 32 }
 ];
 
-const MONTH_ABBR = {
+const MONTH_ABBR_ES = {
   enero: 'Ene', febrero: 'Feb', marzo: 'Mar', abril: 'Abr', mayo: 'May', junio: 'Jun',
-  julio: 'Jul', agosto: 'Ago', septiembre: 'Sep', octubre: 'Oct', noviembre: 'Nov', diciembre: 'Dic',
-  january: 'Ene', february: 'Feb', march: 'Mar', april: 'Abr', may: 'May', june: 'Jun',
-  july: 'Jul', august: 'Ago', september: 'Sep', october: 'Oct', november: 'Nov', december: 'Dic'
+  julio: 'Jul', agosto: 'Ago', septiembre: 'Sep', octubre: 'Oct', noviembre: 'Nov', diciembre: 'Dic'
 };
+const MONTH_ABBR_EN = {
+  enero: 'Jan', febrero: 'Feb', marzo: 'Mar', abril: 'Apr', mayo: 'May', junio: 'Jun',
+  julio: 'Jul', agosto: 'Aug', septiembre: 'Sep', octubre: 'Oct', noviembre: 'Nov', diciembre: 'Dec',
+  january: 'Jan', february: 'Feb', march: 'Mar', april: 'Apr', may: 'May', june: 'Jun',
+  july: 'Jul', august: 'Aug', september: 'Sep', october: 'Oct', november: 'Nov', december: 'Dec',
+  presente: 'Present'
+};
+
+let LANG = 'es';
 
 function normalizePeriod(p) {
   if (!p) return '';
-  const re = new RegExp(`\\b(${Object.keys(MONTH_ABBR).join('|')})\\b`, 'gi');
-  return p.replace(re, (m) => MONTH_ABBR[m.toLowerCase()]);
+  const map = LANG === 'en' ? MONTH_ABBR_EN : MONTH_ABBR_ES;
+  const allKeys = [...Object.keys(MONTH_ABBR_ES), ...Object.keys(MONTH_ABBR_EN)];
+  const re = new RegExp(`\\b(${[...new Set(allKeys)].join('|')})\\b`, 'gi');
+  return p.replace(re, (m) => map[m.toLowerCase()] ?? m);
 }
 
 function contactLine(cv) {
@@ -352,13 +361,14 @@ function buildSidebar(doc, cv) {
   }
 }
 
-export function buildCvPdf(doc, cv, template = 'clasica', scale = 1) {
+export function buildCvPdf(doc, cv, template = 'clasica', scale = 1, lang = 'es') {
   S = scale;
+  LANG = lang;
   const builders = { clasica: buildClasica, moderna: buildModerna, minimal: buildMinimal, sidebar: buildSidebar };
   (builders[template] ?? buildClasica)(doc, cv);
 }
 
-function renderOnce(cv, template, level) {
+function renderOnce(cv, template, level, lang) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: level.margin, bufferPages: true });
     const chunks = [];
@@ -369,18 +379,18 @@ function renderOnce(cv, template, level) {
     doc.on('end', () => {
       resolve({ buffer: Buffer.concat(chunks), pageCount: pages });
     });
-    buildCvPdf(doc, cv, template, level.scale);
+    buildCvPdf(doc, cv, template, level.scale, lang);
     doc.end();
   });
 }
 
-export async function renderCvPdf(cv, template = 'clasica') {
+export async function renderCvPdf(cv, template = 'clasica', lang = 'es') {
   for (const level of DENSITY_LEVELS) {
-    const result = await renderOnce(cv, template, level);
+    const result = await renderOnce(cv, template, level, lang);
     if (result.pageCount <= 1) {
       return { ...result, scale: level.scale, fits: true };
     }
   }
-  const last = await renderOnce(cv, template, DENSITY_LEVELS[DENSITY_LEVELS.length - 1]);
+  const last = await renderOnce(cv, template, DENSITY_LEVELS[DENSITY_LEVELS.length - 1], lang);
   return { ...last, scale: DENSITY_LEVELS[DENSITY_LEVELS.length - 1].scale, fits: false };
 }

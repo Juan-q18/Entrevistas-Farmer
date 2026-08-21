@@ -114,3 +114,84 @@ export async function testConnection() {
   if (!/ok/i.test(out)) throw new Error('Respuesta inesperada: ' + out.slice(0, 80));
   return true;
 }
+
+export async function translateCv(cv) {
+  const settings = getSettings();
+  if (!settings.apiKey && !AI_PROVIDERS[settings.provider]?.noKey) {
+    throw new Error('No hay API key configurada: andá a Configuración y guardala');
+  }
+
+  const translate = async (text) => {
+    if (!text || text.trim().length < 3) return text;
+    const raw = await chatComplete(settings,
+      'You are a professional translator. Translate the following Spanish text to natural, professional English. Output ONLY the English translation, nothing else.',
+      text,
+      { maxTokens: 400, temperature: 0.3 }
+    );
+    return raw.replace(/^["'"''']+|["'"''']+$/g, '').trim() || text;
+  };
+
+  const translateList = async (items) => {
+    if (!items?.length) return items;
+    const numbered = items.map((t, i) => `${i + 1}. ${t}`).join('\n');
+    const raw = await chatComplete(settings,
+      'You are a professional translator. Translate each numbered item from Spanish to English. Output ONLY the numbered translations, same format, nothing else.',
+      numbered,
+      { maxTokens: 800, temperature: 0.3 }
+    );
+    const lines = raw.split('\n').filter((l) => /^\d+\./.test(l.trim()));
+    return items.map((orig, i) => {
+      const match = lines[i]?.replace(/^\d+\.\s*/, '').trim();
+      return match || orig;
+    });
+  };
+
+  const result = { ...cv };
+
+  // titulo
+  if (cv.titulo) result.titulo = await translate(cv.titulo);
+
+  // resumen
+  if (cv.resumen) result.resumen = await translate(cv.resumen);
+
+  // experiencia
+  if (cv.experiencia?.length) {
+    const titles = await translateList(cv.experiencia.map((e) => e.titulo || ''));
+    const descs = await translateList(cv.experiencia.map((e) => e.descripcion || ''));
+    result.experiencia = cv.experiencia.map((e, i) => ({
+      ...e,
+      titulo: titles[i],
+      descripcion: descs[i]
+    }));
+  }
+
+  // educacion titles
+  if (cv.educacion?.length) {
+    const titles = await translateList(cv.educacion.map((e) => e.titulo || ''));
+    result.educacion = cv.educacion.map((e, i) => ({ ...e, titulo: titles[i] }));
+  }
+
+  // proyectos
+  if (cv.proyectos?.length) {
+    const titles = await translateList(cv.proyectos.map((p) => p.titulo || ''));
+    const descs = await translateList(cv.proyectos.map((p) => p.descripcion || ''));
+    result.proyectos = cv.proyectos.map((p, i) => ({
+      ...p,
+      titulo: titles[i],
+      descripcion: descs[i]
+    }));
+  }
+
+  // idiomas
+  if (cv.idiomas?.length) {
+    const names = await translateList(cv.idiomas.map((i) => i.idioma || ''));
+    const levels = await translateList(cv.idiomas.map((i) => i.nivel || ''));
+    result.idiomas = cv.idiomas.map((idi, i) => ({
+      ...idi,
+      idioma: names[i],
+      nivel: levels[i]
+    }));
+  }
+
+  return result;
+}

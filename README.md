@@ -44,6 +44,7 @@ npm run dev:client   # Vite en http://localhost:5173
 - **4 plantillas PDF**: Clásica, Moderna, Minimal, Sidebar (con aviso de riesgo ATS)
 - **Auto-fit 1 hoja**: ajusta escala automáticamente para que el CV siempre entre en una página
 - **ATS Check**: re-parsea el PDF exportado y verifica legibilidad (nombre, contacto, resumen, skills, fechas, columnas, etc.)
+- **Exportación en inglés**: toggle ES/EN al exportar — traduce el CV completo con IA y descarga `cv_EN.pdf`
 
 ### Ofertas de LinkedIn
 - **Búsquedas guardadas**: configurar keywords, ubicación, nivel de experiencia, tipo de empleo, modalidad, antigüedad

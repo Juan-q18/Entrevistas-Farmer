@@ -5,7 +5,7 @@ import db, { parseJson } from './db.js';
 import { parseCvColumns } from './cvParser.js';
 import { extractPdfColumns } from './pdfText.js';
 import { renderCvPdf, TEMPLATES } from './cvPdf.js';
-import { getMaskedSettings, saveSettings, improveText, testConnection } from './ai.js';
+import { getMaskedSettings, saveSettings, improveText, testConnection, translateCv } from './ai.js';
 import { fetchLinkedInJobs, fetchJobDescription } from './linkedin.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -58,11 +58,15 @@ app.post('/api/cv/upload', upload.single('file'), async (req, res) => {
 app.get('/api/cv/export', async (req, res) => {
   try {
     const row = db.prepare('SELECT data, template FROM cv WHERE id = 1').get();
-    const cv = parseJson(row.data, {});
+    let cv = parseJson(row.data, {});
     const template = TEMPLATES[req.query.template] ? req.query.template : row.template;
-    const { buffer } = await renderCvPdf(cv, template);
+    const lang = req.query.lang === 'en' ? 'en' : 'es';
+    if (lang === 'en') {
+      cv = await translateCv(cv);
+    }
+    const { buffer } = await renderCvPdf(cv, template, lang);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="cv.pdf"');
+    res.setHeader('Content-Disposition', `attachment; filename="cv${lang === 'en' ? '_EN' : ''}.pdf"`);
     res.send(buffer);
   } catch (err) {
     console.error('Error al exportar PDF:', err);

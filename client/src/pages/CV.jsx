@@ -227,6 +227,7 @@ export default function CVPage() {
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
   const [wizard, setWizard] = useState(null);
+  const [exportLang, setExportLang] = useState('es');
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -294,18 +295,26 @@ export default function CVPage() {
   };
 
   const exportPdf = async () => {
+    setBusy(true);
+    setError('');
     try {
-      const r = await fetch('/api/cv/export?template=' + template);
-      if (!r.ok) throw new Error('Error al exportar');
+      const r = await fetch(`/api/cv/export?template=${template}&lang=${exportLang}`);
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Error al exportar');
+      }
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'cv.pdf';
+      a.download = exportLang === 'en' ? 'cv_EN.pdf' : 'cv.pdf';
       a.click();
       URL.revokeObjectURL(url);
+      notify(`✓ PDF exportado${exportLang === 'en' ? ' (inglés)' : ''}`);
     } catch (e) {
       setError(e.message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -429,12 +438,26 @@ export default function CVPage() {
           >
             Subir PDF
           </button>
+          <div className="flex items-center rounded-md border border-slate-300">
+            <button
+              className={`px-3 py-2 text-xs font-medium transition ${exportLang === 'es' ? 'bg-slate-700 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              onClick={() => setExportLang('es')}
+            >
+              ES
+            </button>
+            <button
+              className={`px-3 py-2 text-xs font-medium transition ${exportLang === 'en' ? 'bg-slate-700 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              onClick={() => setExportLang('en')}
+            >
+              EN
+            </button>
+          </div>
           <button
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
             onClick={exportPdf}
             disabled={busy || isEmpty}
           >
-            Exportar PDF
+            {busy && exportLang === 'en' ? 'Traduciendo…' : 'Exportar PDF'}
           </button>
           {!isEmpty && (
             <button
