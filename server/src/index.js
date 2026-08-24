@@ -5,7 +5,7 @@ import db, { parseJson } from './db.js';
 import { parseCvColumns } from './cvParser.js';
 import { extractPdfColumns } from './pdfText.js';
 import { renderCvPdf, TEMPLATES } from './cvPdf.js';
-import { getMaskedSettings, saveSettings, improveText, testConnection, translateCv } from './ai.js';
+import { getMaskedSettings, saveSettings, improveText, testConnection, translateCv, extractSkills } from './ai.js';
 import { fetchLinkedInJobs, fetchJobDescription } from './linkedin.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -130,6 +130,16 @@ app.post('/api/cv/improve', async (req, res) => {
     const { field = 'resumen', value = '' } = req.body ?? {};
     const improved = await improveText(field, String(value));
     res.json({ improved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+app.post('/api/cv/skills', async (_req, res) => {
+  try {
+    const row = db.prepare('SELECT data FROM cv WHERE id = 1').get();
+    const cv = parseJson(row?.data ?? '{}', {});
+    const skills = await extractSkills(cv);
+    res.json({ skills });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

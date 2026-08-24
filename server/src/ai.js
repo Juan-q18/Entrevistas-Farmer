@@ -195,3 +195,36 @@ export async function translateCv(cv) {
 
   return result;
 }
+
+export async function extractSkills(cv) {
+  const settings = getSettings();
+  if (!settings.apiKey && !AI_PROVIDERS[settings.provider]?.noKey) {
+    throw new Error('No hay API key configurada: andá a Configuración y guardala');
+  }
+  const sections = [];
+  if (cv.titulo) sections.push('Title: ' + cv.titulo);
+  if (cv.resumen) sections.push('Summary: ' + cv.resumen);
+  cv.experiencia?.forEach((e) => {
+    sections.push('Job: ' + [e.titulo, e.entidad].filter(Boolean).join(' at '));
+    if (e.descripcion) sections.push('Description: ' + e.descripcion);
+  });
+  cv.educacion?.forEach((e) => {
+    sections.push('Education: ' + [e.titulo, e.entidad].filter(Boolean).join(' at '));
+  });
+  cv.proyectos?.forEach((p) => {
+    sections.push('Project: ' + [p.titulo, p.descripcion].filter(Boolean).join(' - '));
+  });
+  if (!sections.length) throw new Error('El CV está vacío, no hay de qué extraer skills');
+  const raw = await chatComplete(settings,
+    'Extract all skills from this CV. Output skill names in English, one per line. ' +
+    'No categories, no labels, no numbering, no bullet points, no explanations. ' +
+    'Translate Spanish skill names to English (e.g. "Gestión de Servicios" → "IT Service Management"). ' +
+    'Example output:\nSQL\nPlaywright\nSelenium\nAgile\nProblem-solving',
+    sections.join('\n'),
+    { maxTokens: 600, temperature: 0.3 }
+  );
+  const seen = new Set();
+  return raw.split('\n')
+    .map((s) => s.replace(/^[-•*\d.)\s]+/, '').replace(/^[A-Z][a-z]+:\s*/i, '').trim())
+    .filter((s) => s.length > 1 && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()));
+}

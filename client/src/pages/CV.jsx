@@ -228,6 +228,7 @@ export default function CVPage() {
   const [dragging, setDragging] = useState(false);
   const [wizard, setWizard] = useState(null);
   const [exportLang, setExportLang] = useState('es');
+  const [extractingSkills, setExtractingSkills] = useState(false);
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -422,6 +423,28 @@ export default function CVPage() {
 
   const improveAll = () => openWizard(buildTasks());
 
+  const extractSkillsFromCv = async () => {
+    setExtractingSkills(true);
+    setError('');
+    try {
+      const r = await fetch('/api/cv/skills', { method: 'POST' });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error ?? 'Error al extraer skills');
+      const existing = new Set(cv.skills.filter(Boolean).map((s) => s.toLowerCase()));
+      const newSkills = body.skills.filter((s) => !existing.has(s.toLowerCase()));
+      if (newSkills.length) {
+        update({ skills: [...cv.skills.filter(Boolean), ...newSkills] });
+        notify(`✓ ${newSkills.length} skill${newSkills.length === 1 ? '' : 's'} agregada${newSkills.length === 1 ? '' : 's'}`);
+      } else {
+        notify('No se encontraron skills nuevas');
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setExtractingSkills(false);
+    }
+  };
+
   const isEmpty = !loaded || Object.values(cv).every((v) =>
     typeof v === 'string' ? v === '' : v.length === 0
   );
@@ -607,7 +630,16 @@ export default function CVPage() {
           </div>
 
           <div className="rounded-lg bg-white p-5 shadow-sm">
-            <h2 className="mb-2 text-sm font-semibold text-slate-700">Skills</h2>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-slate-700">Skills</h2>
+              <button
+                className="shrink-0 rounded-md border border-emerald-500 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                onClick={extractSkillsFromCv}
+                disabled={extractingSkills || isEmpty}
+              >
+                {extractingSkills ? 'Extrayendo…' : '✨ Extraer skills'}
+              </button>
+            </div>
             <textarea
               rows={4}
               className={`${inputCls} resize-y font-mono text-xs`}
