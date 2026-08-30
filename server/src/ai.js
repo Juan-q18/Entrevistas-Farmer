@@ -151,9 +151,6 @@ export async function translateCv(cv, targetLang = 'en') {
 
   const result = { ...cv };
 
-  // titulo
-  if (cv.titulo) result.titulo = await translate(cv.titulo);
-
   // resumen
   if (cv.resumen) result.resumen = await translate(cv.resumen);
 
