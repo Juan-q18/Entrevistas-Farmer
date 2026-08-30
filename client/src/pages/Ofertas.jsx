@@ -163,6 +163,26 @@ export default function OfertasPage() {
           >
             {busy ? 'Actualizando…' : '⟳ Actualizar ofertas'}
           </button>
+          <button
+            className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+            onClick={async () => {
+              if (!confirm('Esto eliminará TODAS las búsquedas y ofertas. Esta acción no se puede deshacer.\n\n¿Continuar?')) return;
+              setBusy(true);
+              try {
+                await fetch('/api/searches', { method: 'DELETE' });
+                setJobs([]);
+                setAllJobs([]);
+                setToast('Todas las búsquedas y ofertas eliminadas');
+              } catch (e) {
+                setError(e.message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+            disabled={busy}
+          >
+            🗑 Borrar todo
+          </button>
         </div>
       </div>
 

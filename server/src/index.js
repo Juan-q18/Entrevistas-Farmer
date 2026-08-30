@@ -92,7 +92,7 @@ app.post('/api/cv/check', async (req, res) => {
       { key: 'resumen', label: 'Resumen / perfil presente', ok: (parsed.resumen ?? '').length >= 40 },
       { key: 'experiencia', label: 'Experiencia laboral detectable', ok: parsed.experiencia.length > 0 },
       { key: 'skills', label: 'Habilidades listadas', ok: parsed.skills.length > 0 },
-      { key: 'educacion', label: 'Educación presente', ok: parsed.educacion.length > 0 },
+      { key: 'educacion', label: 'Educación presente', ok: cv.educacion?.length > 0 },
       { key: 'fechas', label: 'Fechas en formato estándar', ok: parsed.experiencia.every((e) => !e.periodo || /^(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic|Presente|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|\d{4})/.test(e.periodo)) },
       { key: 'columna', label: 'Lectura en un solo orden (una columna)', ok: pages.every((cols) => cols.length === 1) },
       { key: 'sidebar', label: 'Plantilla amigable para ATS', ok: template !== 'sidebar' }
@@ -193,10 +193,15 @@ app.put('/api/searches/:id', (req, res) => {
   res.json(serializeSearch(row));
 });
 
+app.delete('/api/searches', (req, res) => {
+  db.prepare('DELETE FROM jobs').run();
+  db.prepare('DELETE FROM searches').run();
+  res.status(204).end();
+});
+
 app.delete('/api/searches/:id', (req, res) => {
   const info = db.prepare('DELETE FROM searches WHERE id = ?').run(req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: 'Búsqueda no encontrada' });
-  db.prepare('DELETE FROM job_searches WHERE search_id = ?').run(req.params.id);
   res.status(204).end();
 });
 

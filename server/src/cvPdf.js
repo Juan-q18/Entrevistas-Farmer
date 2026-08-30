@@ -39,6 +39,17 @@ const MONTH_ABBR_EN = {
 
 let LANG = 'es';
 
+const SECTION_TITLES = {
+  resumen:         { es: 'Resumen',         en: 'Summary' },
+  experiencia:     { es: 'Experiencia',     en: 'Experience' },
+  educacion:       { es: 'Educacion',       en: 'Education' },
+  skills:          { es: 'Skills',          en: 'Skills' },
+  idiomas:         { es: 'Idiomas',         en: 'Languages' },
+  proyectos:       { es: 'Proyectos',       en: 'Projects' },
+  certificaciones: { es: 'Certificaciones', en: 'Certifications' },
+};
+function st(key) { return SECTION_TITLES[key]?.[LANG] ?? SECTION_TITLES[key]?.es ?? key; }
+
 function normalizePeriod(p) {
   if (!p) return '';
   const map = LANG === 'en' ? MONTH_ABBR_EN : MONTH_ABBR_ES;
@@ -130,31 +141,31 @@ function buildClasica(doc, cv) {
   header(doc, cv, GRAY, { size: 22 });
   doc.strokeColor(LIGHT).lineWidth(1).moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).stroke();
   if (cv.resumen) {
-    sectionTitle(doc, 'Resumen', { accent: LIGHT, textColor: DARK });
+    sectionTitle(doc, st('resumen'), { accent: LIGHT, textColor: DARK });
     doc.fillColor(SLATE).font('Helvetica').fontSize(fs(10)).text(cv.resumen, { lineGap: md(3) });
   }
   if (cv.experiencia?.length) {
-    sectionTitle(doc, 'Experiencia', { accent: LIGHT, textColor: DARK });
+    sectionTitle(doc, st('experiencia'), { accent: LIGHT, textColor: DARK });
     entries(doc, cv.experiencia, { accent: DARK, titleColor: SLATE, headFont: 'Helvetica-Bold' });
   }
   if (cv.educacion?.length) {
-    sectionTitle(doc, 'Educación', { accent: LIGHT, textColor: DARK });
+    sectionTitle(doc, st('educacion'), { accent: LIGHT, textColor: DARK });
     entries(doc, cv.educacion, { accent: DARK, titleColor: SLATE, headFont: 'Helvetica-Bold' });
   }
   if (cv.skills?.length) {
-    sectionTitle(doc, 'Skills', { accent: LIGHT, textColor: DARK });
+    sectionTitle(doc, st('skills'), { accent: LIGHT, textColor: DARK });
     skillsBlock(doc, cv.skills);
   }
   if (cv.idiomas?.length) {
-    sectionTitle(doc, 'Idiomas', { accent: LIGHT, textColor: DARK });
+    sectionTitle(doc, st('idiomas'), { accent: LIGHT, textColor: DARK });
     idiomasBlock(doc, cv.idiomas);
   }
   if (cv.proyectos?.length) {
-    sectionTitle(doc, 'Proyectos', { accent: LIGHT, textColor: DARK });
+    sectionTitle(doc, st('proyectos'), { accent: LIGHT, textColor: DARK });
     entries(doc, cv.proyectos, { accent: DARK, titleColor: SLATE, headFont: 'Helvetica-Bold' });
   }
   if (cv.certificaciones?.length) {
-    sectionTitle(doc, 'Certificaciones', { accent: LIGHT, textColor: DARK });
+    sectionTitle(doc, st('certificaciones'), { accent: LIGHT, textColor: DARK });
     certificacionesBlock(doc, cv.certificaciones);
   }
 }
@@ -164,31 +175,31 @@ function buildModerna(doc, cv) {
   doc.strokeColor(EMERALD).lineWidth(2.5).moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).stroke();
   doc.moveDown(md(0.3));
   if (cv.resumen) {
-    sectionTitle(doc, 'Resumen', { accent: EMERALD, textColor: EMERALD, size: 11 });
+    sectionTitle(doc, st('resumen'), { accent: EMERALD, textColor: EMERALD, size: 11 });
     doc.fillColor(SLATE).font('Helvetica').fontSize(fs(10)).text(cv.resumen, { lineGap: md(3) });
   }
   if (cv.experiencia?.length) {
-    sectionTitle(doc, 'Experiencia', { accent: EMERALD, textColor: EMERALD, size: 11 });
+    sectionTitle(doc, st('experiencia'), { accent: EMERALD, textColor: EMERALD, size: 11 });
     entries(doc, cv.experiencia, { accent: EMERALD, titleColor: SLATE, periodInline: true });
   }
   if (cv.educacion?.length) {
-    sectionTitle(doc, 'Educación', { accent: EMERALD, textColor: EMERALD, size: 11 });
+    sectionTitle(doc, st('educacion'), { accent: EMERALD, textColor: EMERALD, size: 11 });
     entries(doc, cv.educacion, { accent: EMERALD, titleColor: SLATE, periodInline: true });
   }
   if (cv.skills?.length) {
-    sectionTitle(doc, 'Skills', { accent: EMERALD, textColor: EMERALD, size: 11 });
+    sectionTitle(doc, st('skills'), { accent: EMERALD, textColor: EMERALD, size: 11 });
     skillsBlock(doc, cv.skills, { accent: EMERALD });
   }
   if (cv.idiomas?.length) {
-    sectionTitle(doc, 'Idiomas', { accent: EMERALD, textColor: EMERALD, size: 11 });
+    sectionTitle(doc, st('idiomas'), { accent: EMERALD, textColor: EMERALD, size: 11 });
     idiomasBlock(doc, cv.idiomas);
   }
   if (cv.proyectos?.length) {
-    sectionTitle(doc, 'Proyectos', { accent: EMERALD, textColor: EMERALD, size: 11 });
+    sectionTitle(doc, st('proyectos'), { accent: EMERALD, textColor: EMERALD, size: 11 });
     entries(doc, cv.proyectos, { accent: EMERALD, titleColor: SLATE, periodInline: true });
   }
   if (cv.certificaciones?.length) {
-    sectionTitle(doc, 'Certificaciones', { accent: EMERALD, textColor: EMERALD, size: 11 });
+    sectionTitle(doc, st('certificaciones'), { accent: EMERALD, textColor: EMERALD, size: 11 });
     certificacionesBlock(doc, cv.certificaciones, { accent: EMERALD });
   }
 }
@@ -196,31 +207,31 @@ function buildModerna(doc, cv) {
 function buildMinimal(doc, cv) {
   header(doc, cv, GRAY, { font: 'Times-Bold', size: 26 });
   if (cv.resumen) {
-    sectionTitle(doc, 'Resumen', { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
+    sectionTitle(doc, st('resumen'), { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
     doc.fillColor(SLATE).font('Times-Roman').fontSize(fs(10.5)).text(cv.resumen, { lineGap: md(3) });
   }
   if (cv.experiencia?.length) {
-    sectionTitle(doc, 'Experiencia', { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
+    sectionTitle(doc, st('experiencia'), { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
     entries(doc, cv.experiencia, { accent: GRAY, titleColor: SLATE, headFont: 'Times-Bold', periodInline: true });
   }
   if (cv.educacion?.length) {
-    sectionTitle(doc, 'Educación', { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
+    sectionTitle(doc, st('educacion'), { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
     entries(doc, cv.educacion, { accent: GRAY, titleColor: SLATE, headFont: 'Times-Bold', periodInline: true });
   }
   if (cv.skills?.length) {
-    sectionTitle(doc, 'Skills', { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
+    sectionTitle(doc, st('skills'), { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
     skillsBlock(doc, cv.skills, { textColor: SLATE });
   }
   if (cv.idiomas?.length) {
-    sectionTitle(doc, 'Idiomas', { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
+    sectionTitle(doc, st('idiomas'), { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
     idiomasBlock(doc, cv.idiomas);
   }
   if (cv.proyectos?.length) {
-    sectionTitle(doc, 'Proyectos', { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
+    sectionTitle(doc, st('proyectos'), { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
     entries(doc, cv.proyectos, { accent: GRAY, titleColor: SLATE, headFont: 'Times-Bold', periodInline: true });
   }
   if (cv.certificaciones?.length) {
-    sectionTitle(doc, 'Certificaciones', { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
+    sectionTitle(doc, st('certificaciones'), { accent: LIGHT, textColor: DARK, font: 'Times-Bold', size: 11, uppercase: false });
     certificacionesBlock(doc, cv.certificaciones, { textColor: SLATE });
   }
 }
@@ -252,7 +263,7 @@ function buildSidebar(doc, cv) {
 
   const sideSections = [
     cv.skills?.length && {
-      title: 'Skills',
+      title: st('skills'),
       render: (y) => {
         for (const s of cv.skills) {
           doc.fillColor('#cbd5e1').font('Helvetica').fontSize(fs(9)).text(`• ${s}`, sX, y, { width: sW - md(6) });
@@ -261,7 +272,7 @@ function buildSidebar(doc, cv) {
       }
     },
     cv.idiomas?.length && {
-      title: 'Idiomas',
+      title: st('idiomas'),
       render: (y) => {
         for (const id of cv.idiomas) {
           doc.fillColor('#cbd5e1').font('Helvetica').fontSize(fs(9)).text([id.idioma, id.nivel].filter(Boolean).join(' — '), sX, y, { width: sW - md(6) });
@@ -270,7 +281,7 @@ function buildSidebar(doc, cv) {
       }
     },
     cv.certificaciones?.length && {
-      title: 'Certificaciones',
+      title: st('certificaciones'),
       render: (y) => {
         for (const c of cv.certificaciones) {
           doc.fillColor('#cbd5e1').font('Helvetica').fontSize(fs(9)).text(`• ${c}`, sX, y, { width: sW - md(6) });
@@ -292,13 +303,13 @@ function buildSidebar(doc, cv) {
 
   const mainSections = [
     cv.resumen && {
-      title: 'Resumen',
+      title: st('resumen'),
       render: (y) => {
         doc.fillColor(SLATE).font('Helvetica').fontSize(fs(10)).text(cv.resumen, mX, y, { width: mainW, lineGap: md(3) });
       }
     },
     cv.experiencia?.length && {
-      title: 'Experiencia',
+      title: st('experiencia'),
       render: (y) => {
         for (const item of cv.experiencia) {
           const head = [item.titulo, item.entidad].filter(Boolean).join(' — ');
@@ -315,7 +326,7 @@ function buildSidebar(doc, cv) {
       }
     },
     cv.educacion?.length && {
-      title: 'Educación',
+      title: st('educacion'),
       render: (y) => {
         for (const item of cv.educacion) {
           const head = [item.titulo, item.entidad].filter(Boolean).join(' — ');
@@ -332,7 +343,7 @@ function buildSidebar(doc, cv) {
       }
     },
     cv.proyectos?.length && {
-      title: 'Proyectos',
+      title: st('proyectos'),
       render: (y) => {
         for (const item of cv.proyectos) {
           const head = [item.titulo, item.entidad].filter(Boolean).join(' — ');

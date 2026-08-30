@@ -193,6 +193,11 @@ export async function translateCv(cv) {
     }));
   }
 
+  // certificaciones
+  if (cv.certificaciones?.length) {
+    result.certificaciones = await translateList(cv.certificaciones.map((c) => typeof c === 'string' ? c : c.nombre || ''));
+  }
+
   return result;
 }
 
