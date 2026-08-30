@@ -9,6 +9,89 @@ const emptyCv = {
 const inputCls =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500';
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const YEARS = Array.from({ length: 17 }, (_, i) => 2026 - i);
+
+function parsePeriod(str) {
+  if (!str) return { sm: '', sy: '', em: '', ey: '', present: false };
+  const parts = str.split(/\s*[–-]\s*/);
+  const parseOne = (s) => {
+    const m = s.match(/([A-Za-z]+)\s*(\d{4})/);
+    if (m) return { m: m[1].slice(0, 3), y: m[2] };
+    const y = s.match(/(\d{4})/);
+    return { m: '', y: y?.[1] ?? '' };
+  };
+  const first = parseOne(parts[0] ?? '');
+  const last = parseOne(parts[1] ?? '');
+  const present = /presente?/i.test(parts[1] ?? '');
+  return { sm: first.m, sy: first.y, em: last.m, ey: last.y, present };
+}
+
+function PeriodPicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const p = parsePeriod(value);
+  const [sm, setSm] = useState(p.sm);
+  const [sy, setSy] = useState(p.sy);
+  const [em, setEm] = useState(p.em);
+  const [ey, setEy] = useState(p.ey);
+  const [present, setPresent] = useState(p.present);
+
+  const apply = () => {
+    const start = sy ? `${sm ? sm + ' ' : ''}${sy}`.trim() : '';
+    const end = present ? 'Present' : ey ? `${em ? em + ' ' : ''}${ey}`.trim() : '';
+    const result = start && end ? `${start} – ${end}` : start || end;
+    onChange(result);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className="mt-5 shrink-0 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+        onClick={() => setOpen(!open)}
+        title="Seleccionar fecha"
+      >
+        📅
+      </button>
+      {open && (
+        <div className="absolute right-0 top-7 z-40 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+          <p className="mb-2 text-xs font-semibold text-slate-600">Inicio</p>
+          <div className="mb-3 flex gap-2">
+            <select className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs" value={sm} onChange={(e) => setSm(e.target.value)}>
+              <option value="">Mes</option>
+              {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <select className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs" value={sy} onChange={(e) => setSy(e.target.value)}>
+              <option value="">Año</option>
+              {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <p className="mb-2 text-xs font-semibold text-slate-600">Fin</p>
+          <div className="mb-3 flex gap-2">
+            <select className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs" value={em} onChange={(e) => setEm(e.target.value)} disabled={present}>
+              <option value="">Mes</option>
+              {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <select className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs" value={ey} onChange={(e) => setEy(e.target.value)} disabled={present}>
+              <option value="">Año</option>
+              {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <label className="mb-3 flex items-center gap-2 text-xs text-slate-600">
+            <input type="checkbox" checked={present} onChange={(e) => setPresent(e.target.checked)} className="rounded" />
+            Presente / Present
+          </label>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50" onClick={() => setOpen(false)}>Cancelar</button>
+            <button type="button" className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700" onClick={apply}>Aplicar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Field({ label, value, onChange, placeholder, textarea }) {
   return (
     <label className="block">
@@ -53,6 +136,12 @@ function ListEditor({ items, fields, onChange, addLabel, onImprove }) {
                       onChange={(v) => setItem(i, f.key, v)}
                     />
                   </div>
+                  {f.periodField && (
+                    <PeriodPicker
+                      value={item[f.key] ?? ''}
+                      onChange={(v) => setItem(i, f.key, v)}
+                    />
+                  )}
                   {f.improveable && onImprove && (
                     <button
                       className="mt-5 shrink-0 rounded-md border border-emerald-500 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
@@ -606,7 +695,7 @@ export default function CVPage() {
               fields={[
                 { key: 'titulo', label: 'Puesto', placeholder: 'Ej: Desarrollador Frontend' },
                 { key: 'entidad', label: 'Empresa', placeholder: 'Ej: Acme S.A.' },
-                { key: 'periodo', label: 'Período', placeholder: '2021 – 2024' },
+                { key: 'periodo', label: 'Período', placeholder: '2021 – 2024', periodField: true },
                 { key: 'descripcion', label: 'Descripción', placeholder: 'Responsabilidades y logros', textarea: true, full: true, improveable: true }
               ]}
               onChange={(experiencia) => update({ experiencia })}
@@ -622,7 +711,7 @@ export default function CVPage() {
               fields={[
                 { key: 'titulo', label: 'Título', placeholder: 'Ej: Lic. en Sistemas' },
                 { key: 'entidad', label: 'Institución', placeholder: 'Ej: UBA' },
-                { key: 'periodo', label: 'Período', placeholder: '2015 – 2020' }
+                { key: 'periodo', label: 'Período', placeholder: '2015 – 2020', periodField: true }
               ]}
               onChange={(educacion) => update({ educacion })}
               addLabel="Agregar educación"
@@ -669,7 +758,7 @@ export default function CVPage() {
               fields={[
                 { key: 'titulo', label: 'Nombre', placeholder: 'Ej: E-commerce API' },
                 { key: 'entidad', label: 'Rol / Detalle', placeholder: 'Ej: Desarrollador principal' },
-                { key: 'periodo', label: 'Período', placeholder: '2023' },
+                { key: 'periodo', label: 'Período', placeholder: '2023', periodField: true },
                 { key: 'link', label: 'Link', placeholder: 'https://...', full: true },
                 { key: 'descripcion', label: 'Descripción', placeholder: 'Qué hace y qué usaste', textarea: true, full: true, improveable: true }
               ]}

@@ -93,7 +93,7 @@ app.post('/api/cv/check', async (req, res) => {
       { key: 'experiencia', label: 'Experiencia laboral detectable', ok: parsed.experiencia.length > 0 },
       { key: 'skills', label: 'Habilidades listadas', ok: parsed.skills.length > 0 },
       { key: 'educacion', label: 'Educación presente', ok: parsed.educacion.length > 0 },
-      { key: 'fechas', label: 'Fechas en formato estándar', ok: parsed.experiencia.every((e) => !e.periodo || /^(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic|Presente|\d{4})/.test(e.periodo)) },
+      { key: 'fechas', label: 'Fechas en formato estándar', ok: parsed.experiencia.every((e) => !e.periodo || /^(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic|Presente|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|\d{4})/.test(e.periodo)) },
       { key: 'columna', label: 'Lectura en un solo orden (una columna)', ok: pages.every((cols) => cols.length === 1) },
       { key: 'sidebar', label: 'Plantilla amigable para ATS', ok: template !== 'sidebar' }
     ];
