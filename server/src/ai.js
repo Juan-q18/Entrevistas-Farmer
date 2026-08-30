@@ -115,16 +115,19 @@ export async function testConnection() {
   return true;
 }
 
-export async function translateCv(cv) {
+export async function translateCv(cv, targetLang = 'en') {
   const settings = getSettings();
   if (!settings.apiKey && !AI_PROVIDERS[settings.provider]?.noKey) {
     throw new Error('No hay API key configurada: andá a Configuración y guardala');
   }
 
+  const from = targetLang === 'es' ? 'English' : 'Spanish';
+  const to = targetLang === 'es' ? 'Spanish' : 'English';
+
   const translate = async (text) => {
     if (!text || text.trim().length < 3) return text;
     const raw = await chatComplete(settings,
-      'You are a professional translator. Translate the following Spanish text to natural, professional English. Output ONLY the English translation, nothing else.',
+      `You are a professional translator. Translate the following ${from} text to natural, professional ${to}. Output ONLY the ${to} translation, nothing else.`,
       text,
       { maxTokens: 400, temperature: 0.3 }
     );
@@ -135,7 +138,7 @@ export async function translateCv(cv) {
     if (!items?.length) return items;
     const numbered = items.map((t, i) => `${i + 1}. ${t}`).join('\n');
     const raw = await chatComplete(settings,
-      'You are a professional translator. Translate each numbered item from Spanish to English. Output ONLY the numbered translations, same format, nothing else.',
+      `You are a professional translator. Translate each numbered item from ${from} to ${to}. Output ONLY the numbered translations, same format, nothing else.`,
       numbered,
       { maxTokens: 800, temperature: 0.3 }
     );

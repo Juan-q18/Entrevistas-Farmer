@@ -61,9 +61,7 @@ app.get('/api/cv/export', async (req, res) => {
     let cv = parseJson(row.data, {});
     const template = TEMPLATES[req.query.template] ? req.query.template : row.template;
     const lang = req.query.lang === 'en' ? 'en' : 'es';
-    if (lang === 'en') {
-      cv = await translateCv(cv);
-    }
+    cv = await translateCv(cv, lang);
     const { buffer } = await renderCvPdf(cv, template, lang);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="cv${lang === 'en' ? '_EN' : ''}.pdf"`);

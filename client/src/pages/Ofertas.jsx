@@ -169,10 +169,9 @@ export default function OfertasPage() {
               if (!confirm('Esto eliminará TODAS las búsquedas y ofertas. Esta acción no se puede deshacer.\n\n¿Continuar?')) return;
               setBusy(true);
               try {
-                await fetch('/api/searches', { method: 'DELETE' });
-                setJobs([]);
-                setAllJobs([]);
-                setToast('Todas las búsquedas y ofertas eliminadas');
+      await fetch('/api/searches', { method: 'DELETE' });
+      setAllJobs([]);
+      setToast('Todas las búsquedas y ofertas eliminadas');
               } catch (e) {
                 setError(e.message);
               } finally {
