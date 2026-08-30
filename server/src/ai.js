@@ -127,7 +127,12 @@ export async function translateCv(cv, targetLang = 'en') {
   const translate = async (text) => {
     if (!text || text.trim().length < 3) return text;
     const raw = await chatComplete(settings,
-      `You are a professional translator. Translate the following ${from} text to natural, professional ${to}. Output ONLY the ${to} translation, nothing else.`,
+      `You are a professional CV translator. Translate the following ${from} text to ${to}.
+Rules:
+- Keep technology/tool names unchanged (Postman, SQL, Playwright, Selenium, Azure, etc.)
+- Keep company names and proper nouns unchanged
+- Use professional CV language
+- Output ONLY the ${to} translation, nothing else.`,
       text,
       { maxTokens: 400, temperature: 0.3 }
     );
@@ -138,7 +143,12 @@ export async function translateCv(cv, targetLang = 'en') {
     if (!items?.length) return items;
     const numbered = items.map((t, i) => `${i + 1}. ${t}`).join('\n');
     const raw = await chatComplete(settings,
-      `You are a professional translator. Translate each numbered item from ${from} to ${to}. Output ONLY the numbered translations, same format, nothing else.`,
+      `You are a professional CV translator. Translate each numbered item from ${from} to ${to}.
+Rules:
+- Keep technology/tool names unchanged (SQL, MySQL, Postman, Playwright, etc.)
+- Keep company names unchanged
+- Use professional CV language
+- Output ONLY the numbered translations in the same format, nothing else.`,
       numbered,
       { maxTokens: 800, temperature: 0.3 }
     );
@@ -147,6 +157,53 @@ export async function translateCv(cv, targetLang = 'en') {
       const match = lines[i]?.replace(/^\d+\.\s*/, '').trim();
       return match || orig;
     });
+  };
+
+  const LANG_NAMES = {
+    'english':    { es: 'Inglés',    en: 'English' },
+    'español':    { es: 'Español',   en: 'Spanish' },
+    'spanish':    { es: 'Español',   en: 'Spanish' },
+    'portuguese': { es: 'Portugués', en: 'Portuguese' },
+    'portugués':  { es: 'Portugués', en: 'Portuguese' },
+    'french':     { es: 'Francés',   en: 'French' },
+    'francés':    { es: 'Francés',   en: 'French' },
+    'german':     { es: 'Alemán',    en: 'German' },
+    'alemán':     { es: 'Alemán',    en: 'German' },
+    'italian':    { es: 'Italiano',  en: 'Italian' },
+    'italiano':   { es: 'Italiano',  en: 'Italian' },
+    'chinese':    { es: 'Chino',     en: 'Chinese' },
+    'chino':      { es: 'Chino',     en: 'Chinese' },
+    'japanese':   { es: 'Japonés',   en: 'Japanese' },
+    'japonés':    { es: 'Japonés',   en: 'Japanese' },
+    'korean':     { es: 'Coreano',   en: 'Korean' },
+    'coreano':    { es: 'Coreano',   en: 'Korean' },
+    'arabic':     { es: 'Árabe',     en: 'Arabic' },
+    'árabe':      { es: 'Árabe',     en: 'Arabic' },
+    'russian':    { es: 'Ruso',      en: 'Russian' },
+    'ruso':       { es: 'Ruso',      en: 'Russian' },
+  };
+  const LEVEL_NAMES = {
+    'native':       { es: 'Nativo',       en: 'Native' },
+    'nativo':       { es: 'Nativo',       en: 'Native' },
+    'advanced':     { es: 'Avanzado',     en: 'Advanced' },
+    'avanzado':     { es: 'Avanzado',     en: 'Advanced' },
+    'intermediate': { es: 'Intermedio',   en: 'Intermediate' },
+    'intermedio':   { es: 'Intermedio',   en: 'Intermediate' },
+    'basic':        { es: 'Básico',       en: 'Basic' },
+    'básico':       { es: 'Básico',       en: 'Basic' },
+    'fluent':       { es: 'Fluid',        en: 'Fluent' },
+    'fluid':        { es: 'Fluid',        en: 'Fluent' },
+    'beginner':     { es: 'Principiante', en: 'Beginner' },
+    'principiante': { es: 'Principiante', en: 'Beginner' },
+  };
+
+  const mapLang = (name) => {
+    const key = (name || '').toLowerCase().trim();
+    return LANG_NAMES[key]?.[targetLang] ?? name;
+  };
+  const mapLevel = (level) => {
+    const key = (level || '').toLowerCase().trim();
+    return LEVEL_NAMES[key]?.[targetLang] ?? level;
   };
 
   const result = { ...cv };
@@ -171,6 +228,27 @@ export async function translateCv(cv, targetLang = 'en') {
     result.educacion = cv.educacion.map((e, i) => ({ ...e, titulo: titles[i] }));
   }
 
+  // skills
+  if (cv.skills?.length) {
+    const numbered = cv.skills.map((s, i) => `${i + 1}. ${s}`).join('\n');
+    const raw = await chatComplete(settings,
+      `Translate each numbered skill from ${from} to ${to}.
+CRITICAL: Do NOT translate technology or tool names. Keep them exactly as-is. Examples of names that MUST stay unchanged:
+SQL Server, MySQL, Postman, Visual Studio Code, Azure, Cypress, Playwright, Selenium, Jira, Git, Docker, Kubernetes,
+AWS, Google Cloud, Java, Python, JavaScript, TypeScript, React, Angular, Node.js, HTML, CSS, API, REST, GraphQL,
+Kanban, Scrum, ITIL, Cobit, ERP, CRM, SAP, Linux, Windows, macOS, iOS, Android.
+Translate only the descriptive words (e.g. "Regression Testing" → "Pruebas de Regresión").
+Output ONLY the numbered translations, same format.`,
+      numbered,
+      { maxTokens: 800, temperature: 0.3 }
+    );
+    const lines = raw.split('\n').filter((l) => /^\d+\./.test(l.trim()));
+    result.skills = cv.skills.map((orig, i) => {
+      const match = lines[i]?.replace(/^\d+\.\s*/, '').trim();
+      return match || orig;
+    });
+  }
+
   // proyectos
   if (cv.proyectos?.length) {
     const titles = await translateList(cv.proyectos.map((p) => p.titulo || ''));
@@ -182,14 +260,12 @@ export async function translateCv(cv, targetLang = 'en') {
     }));
   }
 
-  // idiomas
+  // idiomas — mapa directo sin IA
   if (cv.idiomas?.length) {
-    const names = await translateList(cv.idiomas.map((i) => i.idioma || ''));
-    const levels = await translateList(cv.idiomas.map((i) => i.nivel || ''));
-    result.idiomas = cv.idiomas.map((idi, i) => ({
+    result.idiomas = cv.idiomas.map((idi) => ({
       ...idi,
-      idioma: names[i],
-      nivel: levels[i]
+      idioma: mapLang(idi.idioma),
+      nivel: mapLevel(idi.nivel)
     }));
   }
 
