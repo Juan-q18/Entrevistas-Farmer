@@ -115,6 +115,81 @@ export async function testConnection() {
   return true;
 }
 
+// ─── Language Detection (heuristic, no API calls) ──────────────────────────
+
+const ES_WORDS = new Set([
+  'el','la','los','las','de','del','un','una','unos','unas',
+  'es','son','era','fue','ser','estar','está','están',
+  'en','con','por','para','que','se','no','más',
+  'este','esta','estos','estas','ese','esa','esos','esas',
+  'como','sin','entre','sobre','hasta','desde','otro','otra',
+  'muy','bien','también','pero','aunque','cuando','donde',
+  'hacer','tener','poder','decir','dar','saber','querer',
+  'desarrollo','gestión','experiencia','proyecto','equipo','empresa',
+  'servicio','cliente','sistema','proceso','área','nivel','cargo',
+  'funciones','responsabilidades','logros','habilidades','formación',
+  'actualmente','anterior','mediante','durante','primer','primera',
+  'necesario','importante','principal','diferentes',
+  'desarrollar','implementar','gestionar','coordinar','supervisar',
+  'participar','colaborar','contribuir','optimizar','mejorar',
+  'diseñar','configurar','administrar','analizar','evaluar',
+  'capacitación','certificación','diplomado','posgrado',
+  'recibir','analizar','ejecutar','investigar','asegurar',
+  'documentar','realizar','informar','reportar','resolver',
+  'proporcionar','solucionar','mejorando','creando','modificando',
+]);
+const EN_WORDS = new Set([
+  'the','is','are','was','were','has','have','had',
+  'and','with','for','in','to','of','this','that',
+  'these','those','a','an','it','they','we','you',
+  'can','will','should','would','could','may','must',
+  'do','does','did','been','being','at','by',
+  'from','on','as','if','or','but','not','so',
+  'than','too','very','just','also','only','even',
+  'more','most','other','some','such','no','own','same',
+  'into','over','after','before','between','under',
+  'about','against','through','during','above','below',
+  'then','once','here','there','each','every','all',
+  'both','few','many','much','any','either',
+  'because','while','although','since','until',
+  'development','management','experience','project','team','company',
+  'service','client','system','process','area','level','position',
+  'functions','responsibilities','achievements','skills','education',
+  'required','important','main','different','multiple',
+  'develop','implement','manage','coordinate','supervise',
+  'participate','collaborate','contribute','optimize','improve',
+  'design','configure','administer','analyze','evaluate',
+  'receive','analyze','execute','investigate','ensure',
+  'document','perform','report','resolve','provide',
+  'solving','testing','automation','regression','analysis',
+  'receive','specific','previously','currently',
+]);
+
+function detectLang(text) {
+  if (!text || typeof text !== 'string') return 'unknown';
+  const clean = text.toLowerCase().replace(/[^a-záéíóúüñ\s]/g, ' ').trim();
+  if (clean.length < 3) return 'unknown';
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (!words.length) return 'unknown';
+  const hasAccents = /[ñáéíóúü]/i.test(text);
+  let esHits = 0, enHits = 0;
+  for (const w of words) {
+    if (ES_WORDS.has(w)) esHits++;
+    if (EN_WORDS.has(w)) enHits++;
+  }
+  if (hasAccents && esHits >= 1) return 'es';
+  if (esHits >= 2 && esHits > enHits) return 'es';
+  if (enHits >= 2 && enHits > esHits) return 'en';
+  if (esHits >= 1 && enHits === 0) return 'es';
+  if (enHits >= 1 && esHits === 0) return 'en';
+  return 'unknown';
+}
+
+function needsTranslation(text, targetLang) {
+  if (!text || typeof text !== 'string' || text.trim().length < 3) return false;
+  return detectLang(text) !== targetLang;
+}
+
 export async function translateCv(cv, targetLang = 'en') {
   const settings = getSettings();
   if (!settings.apiKey && !AI_PROVIDERS[settings.provider]?.noKey) {
@@ -157,6 +232,22 @@ Rules:
       const match = lines[i]?.replace(/^\d+\.\s*/, '').trim();
       return match || orig;
     });
+  };
+
+  const sel = async (text) => {
+    if (!needsTranslation(text, targetLang)) return text;
+    return translate(text);
+  };
+
+  const selList = async (items) => {
+    if (!items?.length) return items;
+    const indices = items.map((t, i) => ({ t, i })).filter(({ t }) => needsTranslation(t, targetLang));
+    if (!indices.length) return items;
+    const texts = indices.map(({ t }) => t);
+    const translated = await translateList(texts);
+    const result = [...items];
+    indices.forEach(({ i }, j) => { result[i] = translated[j]; });
+    return result;
   };
 
   const LANG_NAMES = {
@@ -209,12 +300,12 @@ Rules:
   const result = { ...cv };
 
   // resumen
-  if (cv.resumen) result.resumen = await translate(cv.resumen);
+  if (cv.resumen) result.resumen = await sel(cv.resumen);
 
   // experiencia
   if (cv.experiencia?.length) {
-    const titles = await translateList(cv.experiencia.map((e) => e.titulo || ''));
-    const descs = await translateList(cv.experiencia.map((e) => e.descripcion || ''));
+    const titles = await selList(cv.experiencia.map((e) => e.titulo || ''));
+    const descs = await selList(cv.experiencia.map((e) => e.descripcion || ''));
     result.experiencia = cv.experiencia.map((e, i) => ({
       ...e,
       titulo: titles[i],
@@ -224,35 +315,42 @@ Rules:
 
   // educacion titles
   if (cv.educacion?.length) {
-    const titles = await translateList(cv.educacion.map((e) => e.titulo || ''));
+    const titles = await selList(cv.educacion.map((e) => e.titulo || ''));
     result.educacion = cv.educacion.map((e, i) => ({ ...e, titulo: titles[i] }));
   }
 
   // skills
   if (cv.skills?.length) {
-    const numbered = cv.skills.map((s, i) => `${i + 1}. ${s}`).join('\n');
-    const raw = await chatComplete(settings,
-      `Translate each numbered skill from ${from} to ${to}.
+    const skillIdx = cv.skills.map((s, i) => ({ s, i })).filter(({ s }) => needsTranslation(s, targetLang));
+    if (skillIdx.length) {
+      const numbered = skillIdx.map(({ s }, j) => `${j + 1}. ${s}`).join('\n');
+      const raw = await chatComplete(settings,
+        `Translate each numbered skill from ${from} to ${to}.
 CRITICAL: Do NOT translate technology or tool names. Keep them exactly as-is. Examples of names that MUST stay unchanged:
 SQL Server, MySQL, Postman, Visual Studio Code, Azure, Cypress, Playwright, Selenium, Jira, Git, Docker, Kubernetes,
 AWS, Google Cloud, Java, Python, JavaScript, TypeScript, React, Angular, Node.js, HTML, CSS, API, REST, GraphQL,
 Kanban, Scrum, ITIL, Cobit, ERP, CRM, SAP, Linux, Windows, macOS, iOS, Android.
 Translate only the descriptive words (e.g. "Regression Testing" → "Pruebas de Regresión").
 Output ONLY the numbered translations, same format.`,
-      numbered,
-      { maxTokens: 800, temperature: 0.3 }
-    );
-    const lines = raw.split('\n').filter((l) => /^\d+\./.test(l.trim()));
-    result.skills = cv.skills.map((orig, i) => {
-      const match = lines[i]?.replace(/^\d+\.\s*/, '').trim();
-      return match || orig;
-    });
+        numbered,
+        { maxTokens: 800, temperature: 0.3 }
+      );
+      const lines = raw.split('\n').filter((l) => /^\d+\./.test(l.trim()));
+      result.skills = cv.skills.map((orig, i) => {
+        const j = skillIdx.findIndex((si) => si.i === i);
+        if (j >= 0) {
+          const match = lines[j]?.replace(/^\d+\.\s*/, '').trim();
+          return match || orig;
+        }
+        return orig;
+      });
+    }
   }
 
   // proyectos
   if (cv.proyectos?.length) {
-    const titles = await translateList(cv.proyectos.map((p) => p.titulo || ''));
-    const descs = await translateList(cv.proyectos.map((p) => p.descripcion || ''));
+    const titles = await selList(cv.proyectos.map((p) => p.titulo || ''));
+    const descs = await selList(cv.proyectos.map((p) => p.descripcion || ''));
     result.proyectos = cv.proyectos.map((p, i) => ({
       ...p,
       titulo: titles[i],
@@ -271,7 +369,7 @@ Output ONLY the numbered translations, same format.`,
 
   // certificaciones
   if (cv.certificaciones?.length) {
-    result.certificaciones = await translateList(cv.certificaciones.map((c) => typeof c === 'string' ? c : c.nombre || ''));
+    result.certificaciones = await selList(cv.certificaciones.map((c) => typeof c === 'string' ? c : c.nombre || ''));
   }
 
   return result;
