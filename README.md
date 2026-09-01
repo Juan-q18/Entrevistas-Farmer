@@ -1,6 +1,6 @@
 # Trabajo Farmer
 
-App local para buscar, optimizar y gestionar ofertas laborales de LinkedIn. Incluye editor de CV con exportación PDF optimizada para ATS, rastreo de ofertas de LinkedIn, y mejorador de texto con IA.
+App local para buscar, optimizar y gestionar ofertas laborales de LinkedIn. Incluye editor de CV con exportación PDF optimizada para ATS (bilingüe ES/EN), rastreo de ofertas de LinkedIn, y mejorador de texto con IA.
 
 ## Stack
 
@@ -39,25 +39,33 @@ npm run dev:client   # Vite en http://localhost:5173
 ## Funcionalidades
 
 ### CV
-- **Upload de PDF**: extrae texto con parseo espacial (columnas, bullets, headers) y lo volca al editor
+- **Upload de PDF**: extrae texto con parseo espacial (columnas, bullets, headers) y lo vuelca al editor
 - **Editor completo**: nombre, título, contacto, resumen, experiencia, educación, skills, idiomas, proyectos, certificaciones
+- **Selector de fechas 📅**: popover con dropdowns de mes/año para los campos de período (experiencia, educación, proyectos), con checkbox "Presente"
 - **4 plantillas PDF**: Clásica, Moderna, Minimal, Sidebar (con aviso de riesgo ATS)
 - **Auto-fit 1 hoja**: ajusta escala automáticamente para que el CV siempre entre en una página
-- **ATS Check**: re-parsea el PDF exportado y verifica legibilidad (nombre, contacto, resumen, skills, fechas, columnas, etc.)
-- **Exportación en inglés**: toggle ES/EN al exportar — traduce el CV completo con IA y descarga `cv_EN.pdf`
+- **ATS Check**: re-parsea el PDF exportado y verifica legibilidad (nombre, contacto, resumen, skills, fechas, columnas, etc.). El check de fechas es bilingüe (ES/EN) y el de educación lee directo de la DB
+- **Exportación bilingüe**: toggle ES/EN al exportar — descarga `cv.pdf` o `cv_EN.pdf`
+  - **Traducción selectiva por campo**: detecta el idioma de cada campo (heurística sin IA) y solo traduce los que no están en el idioma pedido. Si tenés el resumen en ES y la experiencia en EN, al exportar EN solo traduce el resumen
+  - **Idiomas con mapa directo**: los nombres de idiomas y niveles se traducen con un mapa fijo (sin IA), nunca quedan como "El idioma"
+  - **Skills preservadas**: los nombres de tecnologías no se traducen (SQL Server, Postman, Playwright, etc.); solo se traducen los términos descriptivos
+  - **Título profesional**: nunca se traduce, queda tal cual lo escribas
+- **Extraer skills con IA**: botón "✨ Extraer skills" analiza todo el CV y genera una lista de skills en inglés (deduplicada y con merge sin duplicados)
+- **Mejorar texto con IA**: reescribe resumen/descripciones campo por campo o todos juntos
 
 ### Ofertas de LinkedIn
 - **Búsquedas guardadas**: configurar keywords, ubicación, nivel de experiencia, tipo de empleo, modalidad, antigüedad
 - **Scraping**: trae ofertas reales del endpoint guest de LinkedIn (sin API key)
 - **Descripción del puesto**: fetch perezoso con caché en DB — se trae una vez y queda guardada
-- **Gestión de estado**: marcar como nueva / interesante / aplicada / descartada
+- **Gestión de estado**: marcar como nueva / interesante / aplicada / descartada (tabs con contadores estables)
 - **Notas**: agregar notas por oferta (salario, contacto, fecha de entrevista)
-- **Filtros**: buscar por título/empresa, filtrar por estado, todo en tiempo real
+- **Filtros**: buscar por título/empresa, filtrar por estado, con resaltado de coincidencias
+- **Borrar todo**: botón "🗑 Borrar todo" elimina todas las búsquedas y ofertas (con confirmación)
 
 ### Mejorador de IA
 - **Pulir texto**: reescribe resumen y descripciones con tono profesional, sin inventar datos
 - **Preview editable**: muestra original vs mejorado, con textarea para retocar antes de aprobar
-- **Asistente campo por campo**: "Mejorar todo" revisa cada campo uno por uno con opción de aprobar/saltar
+- **Asistente campo por campo**: "Mejorar todo" revisa cada campo uno por uno con opción de aprobar/saltar/salir
 - **Multi-proveedor**: soporta DeepSeek, OpenAI, Groq, OpenRouter y Ollama (local, sin key)
 
 ## Estructura del proyecto
@@ -66,20 +74,20 @@ npm run dev:client   # Vite en http://localhost:5173
 Trabajo-Farmer/
 ├── server/
 │   └── src/
-│       ├── index.js        # Rutas Express
-│       ├── db.js           # SQLite (cv, searches, jobs, settings)
+│       ├── index.js        # Rutas Express (CV, searches, jobs, settings, AI)
+│       ├── db.js           # SQLite (cv, searches, jobs, job_searches, settings)
 │       ├── cvParser.js     # Parseo espacial de PDFs
-│       ├── cvPdf.js        # Exportación PDF (4 plantillas, auto-fit)
+│       ├── cvPdf.js        # Exportación PDF (4 plantillas, auto-fit, títulos bilingües)
 │       ├── pdfText.js      # Extracción de texto + clustering de columnas
-│       ├── ai.js           # Cliente IA (mejorar texto, test conexión)
+│       ├── ai.js           # Cliente IA (mejorar, traducir, extraer skills, detectar idioma)
 │       └── linkedin.js     # Scraping LinkedIn (búsqueda + descripción)
 ├── client/
 │   └── src/
 │       ├── App.jsx          # Router y navegación
 │       └── pages/
-│           ├── CV.jsx       # Editor de CV + plantillas + preview IA
+│           ├── CV.jsx       # Editor de CV + plantillas + PeriodPicker + traducción + skills
 │           ├── Busquedas.jsx # CRUD de búsquedas de LinkedIn
-│           ├── Ofertas.jsx  # Gestión de ofertas (estados, notas, descripción)
+│           ├── Ofertas.jsx  # Gestión de ofertas (estados, notas, descripción, borrar todo)
 │           └── Configuracion.jsx # Configurar proveedor IA
 └── mi-cv.pdf               # (local, no incluido en el repo)
 ```
@@ -88,12 +96,14 @@ Trabajo-Farmer/
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
+| GET | `/api/health` | Health check |
 | GET | `/api/cv` | Obtener CV guardado |
 | PUT | `/api/cv` | Guardar CV |
 | POST | `/api/cv/upload` | Subir PDF y parsear |
-| GET | `/api/cv/export?template=clasica` | Exportar PDF |
+| GET | `/api/cv/export?template=clasica&lang=es\|en` | Exportar PDF (traducción selectiva según `lang`) |
 | POST | `/api/cv/check` | Verificar compatibilidad ATS |
 | POST | `/api/cv/improve` | Mejorar texto con IA |
+| POST | `/api/cv/skills` | Extraer skills del CV con IA |
 | GET | `/api/settings` | Configuración IA (key enmascarada) |
 | PUT | `/api/settings` | Guardar configuración IA |
 | POST | `/api/ai/test` | Test de conexión con proveedor |
@@ -101,6 +111,7 @@ Trabajo-Farmer/
 | POST | `/api/searches` | Crear búsqueda |
 | PUT | `/api/searches/:id` | Editar búsqueda |
 | DELETE | `/api/searches/:id` | Eliminar búsqueda |
+| DELETE | `/api/searches` | Eliminar todas las búsquedas y ofertas |
 | GET | `/api/jobs` | Listar ofertas (filtro por status, q, searchId) |
 | PATCH | `/api/jobs/:id` | Actualizar estado/nota |
 | GET | `/api/jobs/:id/description` | Obtener descripción de LinkedIn (caché) |
@@ -126,3 +137,4 @@ Para Ollama: instalar localmente con `ollama pull llama3.2`.
 - El parseo de PDFs usa clustering por mediana de huecos para detectar columnas (funciona bien con Canva, Word, etc.)
 - El auto-fit de 1 hoja prueba escalas decrecientes (1.0 → 0.74) hasta que el PDF quepa en una página.
 - El parseo del CV corrige errores comunes del texto extraído de PDFs (espacios faltantes, bullets inline, headers ocupando líneas).
+- La detección de idioma de la traducción selectiva es heurística (listas de palabras comunes ES/EN); si no puede decidir, traduce por defecto (seguro).

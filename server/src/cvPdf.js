@@ -27,7 +27,10 @@ const DENSITY_LEVELS = [
 
 const MONTH_ABBR_ES = {
   enero: 'Ene', febrero: 'Feb', marzo: 'Mar', abril: 'Abr', mayo: 'May', junio: 'Jun',
-  julio: 'Jul', agosto: 'Ago', septiembre: 'Sep', octubre: 'Oct', noviembre: 'Nov', diciembre: 'Dic'
+  julio: 'Jul', agosto: 'Ago', septiembre: 'Sep', octubre: 'Oct', noviembre: 'Nov', diciembre: 'Dic',
+  january: 'Ene', february: 'Feb', march: 'Mar', april: 'Abr', may: 'May', june: 'Jun',
+  july: 'Jul', august: 'Ago', september: 'Sep', october: 'Oct', november: 'Nov', december: 'Dic',
+  presente: 'Presente'
 };
 const MONTH_ABBR_EN = {
   enero: 'Jan', febrero: 'Feb', marzo: 'Mar', abril: 'Apr', mayo: 'May', junio: 'Jun',

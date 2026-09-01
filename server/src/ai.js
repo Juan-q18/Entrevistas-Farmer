@@ -319,33 +319,7 @@ Rules:
     result.educacion = cv.educacion.map((e, i) => ({ ...e, titulo: titles[i] }));
   }
 
-  // skills
-  if (cv.skills?.length) {
-    const skillIdx = cv.skills.map((s, i) => ({ s, i })).filter(({ s }) => needsTranslation(s, targetLang));
-    if (skillIdx.length) {
-      const numbered = skillIdx.map(({ s }, j) => `${j + 1}. ${s}`).join('\n');
-      const raw = await chatComplete(settings,
-        `Translate each numbered skill from ${from} to ${to}.
-CRITICAL: Do NOT translate technology or tool names. Keep them exactly as-is. Examples of names that MUST stay unchanged:
-SQL Server, MySQL, Postman, Visual Studio Code, Azure, Cypress, Playwright, Selenium, Jira, Git, Docker, Kubernetes,
-AWS, Google Cloud, Java, Python, JavaScript, TypeScript, React, Angular, Node.js, HTML, CSS, API, REST, GraphQL,
-Kanban, Scrum, ITIL, Cobit, ERP, CRM, SAP, Linux, Windows, macOS, iOS, Android.
-Translate only the descriptive words (e.g. "Regression Testing" → "Pruebas de Regresión").
-Output ONLY the numbered translations, same format.`,
-        numbered,
-        { maxTokens: 800, temperature: 0.3 }
-      );
-      const lines = raw.split('\n').filter((l) => /^\d+\./.test(l.trim()));
-      result.skills = cv.skills.map((orig, i) => {
-        const j = skillIdx.findIndex((si) => si.i === i);
-        if (j >= 0) {
-          const match = lines[j]?.replace(/^\d+\.\s*/, '').trim();
-          return match || orig;
-        }
-        return orig;
-      });
-    }
-  }
+  // skills — se conservan tal cual, nunca se traducen
 
   // proyectos
   if (cv.proyectos?.length) {
