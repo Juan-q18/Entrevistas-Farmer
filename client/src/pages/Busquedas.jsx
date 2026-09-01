@@ -223,7 +223,7 @@ export default function BusquedasPage() {
       });
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? 'Error');
-      notify(`✓ ${body.fetched} ofertas (${body.new} nuevas) para "${s.name}"`);
+      notify(body.truncated ? `✓ ${body.fetched} ofertas (${body.new} nuevas) para "${s.name}". Se limitó a ${body.truncated} países por ejecución — volvé a traer para el resto.` : `✓ ${body.fetched} ofertas (${body.new} nuevas) para "${s.name}"`);
       load();
     } catch (e) {
       setError(e.message);

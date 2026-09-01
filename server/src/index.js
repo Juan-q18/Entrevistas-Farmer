@@ -300,7 +300,10 @@ app.post('/api/jobs/fetch', async (req, res) => {
     }
 
     // expandir países/continentes seleccionados → lista de { code, geoId, name }
-    const countryList = expandCountries(search.countries ?? []);
+    const MAX_COUNTRIES_PER_FETCH = 5;
+    let countryList = expandCountries(search.countries ?? []);
+    const truncated = countryList.length > MAX_COUNTRIES_PER_FETCH;
+    if (truncated) countryList = countryList.slice(0, MAX_COUNTRIES_PER_FETCH);
     // variantes de búsqueda: una por país (cada una con su geoId y work type)
     const variants = [];
     const forceRemote = !!search.remoteOnly;
@@ -356,7 +359,7 @@ app.post('/api/jobs/fetch', async (req, res) => {
     if (searchId) {
       db.prepare("UPDATE searches SET last_run_at = datetime('now') WHERE id = ?").run(searchId);
     }
-    res.json({ fetched: total, new: newCount });
+    res.json({ fetched: total, new: newCount, truncated: truncated ? MAX_COUNTRIES_PER_FETCH : undefined });
   } catch (err) {
     console.error('Error al traer ofertas:', err.message);
     res.status(502).json({ error: err.message });

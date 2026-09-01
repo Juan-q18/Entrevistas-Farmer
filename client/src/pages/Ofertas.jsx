@@ -142,8 +142,14 @@ export default function OfertasPage() {
           body: JSON.stringify({ searchId: s.id })
         });
         const body = await f.json();
+        if (f.status === 429) {
+          setError(`LinkedIn te bloqueó al procesar "${s.name}". Se trajeron ${total} ofertas antes del bloqueo. Esperá unos minutos y volvé a intentar.`);
+          load();
+          return;
+        }
         if (!f.ok) throw new Error(body.error ?? 'Error');
         total += body.fetched;
+        if (body.truncated) setError(`Alguna búsqueda se limitó a ${body.truncated} países por ejecución — volvé a actualizar para el resto.`);
       }
       notify(`✓ ${total} ofertas traídas de ${active.length} búsqueda(s)`);
       load();

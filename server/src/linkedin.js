@@ -207,7 +207,7 @@ async function fetchHtml(url, { label = 'búsqueda' } = {}) {
       if (res.status === 404) throw new Error('Este puesto ya no existe en LinkedIn (fue removido o expiró).');
       if (!res.ok) throw new Error(`LinkedIn respondió HTTP ${res.status}`);
       const html = await res.text();
-      if (html.includes('captcha') || html.includes('securescripts') || html.length < 500) {
+      if (html.includes('captcha') || html.includes('securescripts')) {
         if (attempt < maxAttempts) {
           await sleep(10000 * attempt);
           continue;
