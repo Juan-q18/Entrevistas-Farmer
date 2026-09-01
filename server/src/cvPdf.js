@@ -30,14 +30,18 @@ const MONTH_ABBR_ES = {
   julio: 'Jul', agosto: 'Ago', septiembre: 'Sep', octubre: 'Oct', noviembre: 'Nov', diciembre: 'Dic',
   january: 'Ene', february: 'Feb', march: 'Mar', april: 'Abr', may: 'May', june: 'Jun',
   july: 'Jul', august: 'Ago', september: 'Sep', october: 'Oct', november: 'Nov', december: 'Dic',
-  presente: 'Presente'
+  jan: 'Ene', feb: 'Feb', mar: 'Mar', apr: 'Abr', jun: 'Jun', jul: 'Jul',
+  aug: 'Ago', sep: 'Sep', oct: 'Oct', nov: 'Nov', dec: 'Dic',
+  presente: 'Presente', present: 'Presente'
 };
 const MONTH_ABBR_EN = {
   enero: 'Jan', febrero: 'Feb', marzo: 'Mar', abril: 'Apr', mayo: 'May', junio: 'Jun',
   julio: 'Jul', agosto: 'Aug', septiembre: 'Sep', octubre: 'Oct', noviembre: 'Nov', diciembre: 'Dec',
   january: 'Jan', february: 'Feb', march: 'Mar', april: 'Apr', may: 'May', june: 'Jun',
   july: 'Jul', august: 'Aug', september: 'Sep', october: 'Oct', november: 'Nov', december: 'Dec',
-  presente: 'Present'
+  ene: 'Jan', feb: 'Feb', mar: 'Mar', abr: 'Apr', may: 'May', jun: 'Jun', jul: 'Jul',
+  ago: 'Aug', sep: 'Sep', oct: 'Oct', nov: 'Nov', dic: 'Dec',
+  presente: 'Present', present: 'Present'
 };
 
 let LANG = 'es';
