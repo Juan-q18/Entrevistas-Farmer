@@ -150,6 +150,7 @@ function serializeSearch(row) {
     jobTypes: parseJson(row.job_types, []),
     workTypes: parseJson(row.work_types, []),
     countries: parseJson(row.countries, []),
+    remoteOnly: !!row.remote_only,
     active: !!row.active
   };
 }
@@ -160,32 +161,32 @@ app.get('/api/searches', (_req, res) => {
 });
 
 app.post('/api/searches', (req, res) => {
-  const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', active = true } = req.body ?? {};
+  const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', remoteOnly = false, active = true } = req.body ?? {};
   if (!name || !String(name).trim()) {
     return res.status(400).json({ error: 'name es obligatorio' });
   }
   const info = db.prepare(`
-    INSERT INTO searches (name, keywords, location, geo_id, experience_levels, job_types, work_types, countries, time_posted, company_id, active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO searches (name, keywords, location, geo_id, experience_levels, job_types, work_types, countries, time_posted, company_id, remote_only, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     String(name).trim(), keywords, location, geoId,
     JSON.stringify(experienceLevels), JSON.stringify(jobTypes), JSON.stringify(workTypes), JSON.stringify(countries),
-    timePosted, companyId, active ? 1 : 0
+    timePosted, companyId, remoteOnly ? 1 : 0, active ? 1 : 0
   );
   const row = db.prepare('SELECT * FROM searches WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json(serializeSearch(row));
 });
 
 app.put('/api/searches/:id', (req, res) => {
-  const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', active = true } = req.body ?? {};
+  const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', remoteOnly = false, active = true } = req.body ?? {};
   const info = db.prepare(`
     UPDATE searches SET
-      name = ?, keywords = ?, location = ?, geo_id = ?, experience_levels = ?, job_types = ?, work_types = ?, countries = ?, time_posted = ?, company_id = ?, active = ?
+      name = ?, keywords = ?, location = ?, geo_id = ?, experience_levels = ?, job_types = ?, work_types = ?, countries = ?, time_posted = ?, company_id = ?, remote_only = ?, active = ?
     WHERE id = ?
   `).run(
     String(name).trim(), keywords, location, geoId,
     JSON.stringify(experienceLevels), JSON.stringify(jobTypes), JSON.stringify(workTypes), JSON.stringify(countries),
-    timePosted, companyId, active ? 1 : 0, Number(req.params.id)
+    timePosted, companyId, remoteOnly ? 1 : 0, active ? 1 : 0, Number(req.params.id)
   );
   if (info.changes === 0) return res.status(404).json({ error: 'Búsqueda no encontrada' });
   const row = db.prepare('SELECT * FROM searches WHERE id = ?').get(req.params.id);
@@ -278,13 +279,14 @@ app.post('/api/jobs/fetch', async (req, res) => {
     const countryList = expandCountries(search.countries ?? []);
     // variantes de búsqueda: una por país (cada una con su geoId y work type)
     const variants = [];
+    const forceRemote = !!search.remoteOnly;
     if (countryList.length) {
       for (const c of countryList) {
-        const manual = search.workTypes?.length ? search.workTypes : [workTypeForCountry(c.code)];
+        const manual = forceRemote ? ['2'] : (search.workTypes?.length ? search.workTypes : [workTypeForCountry(c.code)]);
         variants.push({ ...search, geoId: c.geoId, workTypes: manual, location: '' });
       }
     } else {
-      const manual = search.workTypes?.length ? search.workTypes : (search.geoId ? search.workTypes : []);
+      const manual = forceRemote ? ['2'] : (search.workTypes?.length ? search.workTypes : (search.geoId ? search.workTypes : []));
       variants.push({ ...search, workTypes: manual });
     }
 
@@ -305,6 +307,7 @@ app.post('/api/jobs/fetch', async (req, res) => {
       for (const j of fetched) {
         if (seen.has(j.linkedinId)) continue;
         seen.add(j.linkedinId);
+        if (forceRemote && j.remote !== 1) continue;
         const lang = detectLang(j.title);
         let row = find.get(j.linkedinId);
         if (!row) {

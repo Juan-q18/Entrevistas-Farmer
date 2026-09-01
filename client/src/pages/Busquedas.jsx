@@ -5,11 +5,11 @@ const inputCls =
 
 const EXPERIENCE_LEVELS = [
   { value: '1', label: 'Pasantía' },
-  { value: '2', label: 'Junior' },
+  { value: '2', label: 'Nivel inicial' },
   { value: '3', label: 'Associate' },
   { value: '4', label: 'Mid-Senior' },
   { value: '5', label: 'Director' },
-  { value: '6', label: 'Executive' }
+  { value: '6', label: 'Ejecutivo' }
 ];
 const JOB_TYPES = [
   { value: 'F', label: 'Tiempo completo' },
@@ -65,7 +65,7 @@ const TIME_POSTED = [
 
 const emptyDraft = {
   name: '', keywords: '', location: '', geoId: '',
-  experienceLevels: [], jobTypes: [], workTypes: [], countries: [], timePosted: '', companyId: '', active: true
+  experienceLevels: [], jobTypes: [], workTypes: [], countries: [], timePosted: '', companyId: '', remoteOnly: false, active: true
 };
 
 function MultiCheck({ options, values, onChange }) {
@@ -150,7 +150,7 @@ export default function BusquedasPage() {
     setDraft({
       name: s.name, keywords: s.keywords, location: s.location, geoId: s.geo_id,
       experienceLevels: s.experienceLevels, jobTypes: s.jobTypes, workTypes: s.workTypes, countries: s.countries,
-      timePosted: s.time_posted, companyId: s.company_id, active: s.active
+      timePosted: s.time_posted, companyId: s.company_id, remoteOnly: s.remoteOnly, active: s.active
     });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -217,6 +217,7 @@ export default function BusquedasPage() {
       const labels = WORK_TYPES.filter((o) => s.workTypes.includes(o.value)).map((o) => o.label);
       parts.push('Modalidad: ' + labels.join(', '));
     }
+    if (s.remoteOnly) parts.push('Solo remoto');
     const tp = TIME_POSTED.find((o) => o.value === s.time_posted);
     if (tp && tp.value) parts.push(tp.label);
     return parts.join(' · ');
@@ -292,7 +293,7 @@ export default function BusquedasPage() {
               <MultiCheck options={COUNTRIES} values={draft.countries}
                 onChange={(countries) => setDraft({ ...draft, countries })} />
               <p className="mt-1 text-[11px] text-slate-400">
-                Sugerencia: Argentina → híbrido, resto del mundo → remoto (automático). Elegí modalidad manual para anularlo.
+                Sugerencia: Argentina → híbrido, resto del mundo → remoto (automático). Activá "Solo remoto desde Argentina" para que solo traiga propuestas que acepten trabajo remoto global.
               </p>
             </div>
             <div className="sm:col-span-2">
@@ -313,11 +314,16 @@ export default function BusquedasPage() {
                 onChange={(e) => setDraft({ ...draft, companyId: e.target.value })} />
             </label>
           </div>
-          <div className="mt-4 flex items-center gap-4">
+          <div className="mt-4 flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-slate-600">
               <input type="checkbox" checked={draft.active}
                 onChange={(e) => setDraft({ ...draft, active: e.target.checked })} />
               Activa
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={draft.remoteOnly}
+                onChange={(e) => setDraft({ ...draft, remoteOnly: e.target.checked })} />
+              🌍 Solo remoto que acepte trabajar desde Argentina
             </label>
             <button
               className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"

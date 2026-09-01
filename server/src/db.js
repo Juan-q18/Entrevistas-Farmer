@@ -83,6 +83,9 @@ const searchCols = db.prepare('PRAGMA table_info(searches)').all().map((c) => c.
 if (!searchCols.includes('countries')) {
   db.exec("ALTER TABLE searches ADD COLUMN countries TEXT NOT NULL DEFAULT '[]'");
 }
+if (!searchCols.includes('remote_only')) {
+  db.exec('ALTER TABLE searches ADD COLUMN remote_only INTEGER NOT NULL DEFAULT 0');
+}
 
 const jobCols = db.prepare('PRAGMA table_info(jobs)').all().map((c) => c.name);
 if (!jobCols.includes('remote')) {
