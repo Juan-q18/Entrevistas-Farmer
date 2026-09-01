@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const inputCls =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500';
@@ -98,6 +98,10 @@ export default function BusquedasPage() {
   const [busy, setBusy] = useState(null);
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
+  const [keywordChips, setKeywordChips] = useState([]);
+  const [kwInput, setKwInput] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSugg, setShowSugg] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -117,6 +121,37 @@ export default function BusquedasPage() {
     setTimeout(() => setToast(''), 3500);
   };
 
+  const suggTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(suggTimer.current);
+    const q = kwInput.trim();
+    if (!showForm) return;
+    if (!q) {
+      setSuggestions([]);
+      return;
+    }
+    suggTimer.current = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/searches/suggestions?q=${encodeURIComponent(q)}`);
+        const body = await r.json();
+        if (Array.isArray(body)) setSuggestions(body.filter((s) => !keywordChips.includes(s)));
+      } catch { /* ignore */ }
+    }, 200);
+    return () => clearTimeout(suggTimer.current);
+  }, [kwInput, showForm, keywordChips]);
+
+  const addKeyword = (term) => {
+    const t = term.trim();
+    if (!t || keywordChips.includes(t)) return;
+    setKeywordChips([...keywordChips, t]);
+    setKwInput('');
+    setSuggestions([]);
+  };
+
+  const removeKeyword = (term) => {
+    setKeywordChips(keywordChips.filter((k) => k !== term));
+  };
+
   const saveSearch = async () => {
     if (!draft.name.trim()) {
       setError('El nombre es obligatorio');
@@ -129,12 +164,15 @@ export default function BusquedasPage() {
       const r = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft)
+        body: JSON.stringify({ ...draft, keywords: keywordChips.join(' ') })
       });
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? 'Error al guardar');
       notify(editingId ? '✓ Búsqueda actualizada' : '✓ Búsqueda creada');
       setDraft(emptyDraft);
+      setKeywordChips([]);
+      setKwInput('');
+      setSuggestions([]);
       setEditingId(null);
       setShowForm(false);
       load();
@@ -152,6 +190,9 @@ export default function BusquedasPage() {
       experienceLevels: s.experienceLevels, jobTypes: s.jobTypes, workTypes: s.workTypes, countries: s.countries,
       timePosted: s.time_posted, companyId: s.company_id, remoteOnly: s.remoteOnly, active: s.active
     });
+    setKeywordChips(s.keywords ? String(s.keywords).split(/\s+/).filter(Boolean) : []);
+    setKwInput('');
+    setSuggestions([]);
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -254,12 +295,51 @@ export default function BusquedasPage() {
               <input className={inputCls} value={draft.location} placeholder="Ej: Buenos Aires, Argentina"
                 onChange={(e) => setDraft({ ...draft, location: e.target.value })} />
             </label>
-            <label className="block sm:col-span-2">
+            <div className="sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Palabras clave</span>
-              <input className={inputCls} value={draft.keywords} placeholder="Ej: qa tester automation"
-                onChange={(e) => setDraft({ ...draft, keywords: e.target.value })} />
-              <span className="mt-1 block text-[11px] text-slate-400">Separar con espacios, ej: qa tester automation</span>
-            </label>
+              <div className="relative">
+                <div className="flex flex-wrap gap-1.5 rounded-md border border-slate-300 bg-white px-2 py-1.5 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500">
+                  {keywordChips.map((k) => (
+                    <span key={k} className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      {k}
+                      <button type="button" className="text-emerald-500 hover:text-emerald-800" onClick={() => removeKeyword(k)} title="Quitar">✕</button>
+                    </span>
+                  ))}
+                  <input
+                    className="min-w-32 flex-1 bg-transparent text-sm focus:outline-none"
+                    value={kwInput}
+                    placeholder={keywordChips.length ? '' : 'Escribí un puesto…'}
+                    onChange={(e) => setKwInput(e.target.value)}
+                    onFocus={() => setShowSugg(true)}
+                    onBlur={() => setTimeout(() => setShowSugg(false), 150)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && kwInput.trim()) {
+                        e.preventDefault();
+                        addKeyword(kwInput);
+                      }
+                      if (e.key === 'Backspace' && !kwInput && keywordChips.length) {
+                        removeKeyword(keywordChips[keywordChips.length - 1]);
+                      }
+                    }}
+                  />
+                </div>
+                {showSugg && suggestions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-emerald-50"
+                        onMouseDown={(e) => { e.preventDefault(); addKeyword(s); }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <span className="mt-1 block text-[11px] text-slate-400">Elegí puestos del listado o escribilos y enter. Cada keyword se busca junto a las demás.</span>
+            </div>
             <div className="sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Nivel de experiencia</span>
               <MultiCheck options={EXPERIENCE_LEVELS} values={draft.experienceLevels}

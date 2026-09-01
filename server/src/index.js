@@ -163,6 +163,23 @@ app.get('/api/searches', (_req, res) => {
   res.json(rows.map(serializeSearch));
 });
 
+const CURATED_POSITIONS = [
+  'QA Tester', 'QA Automation Engineer', 'QA Manual Tester', 'SDET', 'Software Tester',
+  'Test Analyst', 'Quality Analyst', 'Test Automation Engineer', 'QA Lead',
+  'Backend Developer', 'Frontend Developer', 'Full Stack Developer', 'Data Analyst',
+  'Data Engineer', 'DevOps Engineer', 'Software Engineer', 'Manual Tester',
+  'Automation Tester', 'Test Engineer', 'Performance Tester'
+];
+
+app.get('/api/searches/suggestions', (req, res) => {
+  const q = String(req.query.q ?? '').trim().toLowerCase();
+  const fromDb = db.prepare('SELECT DISTINCT title FROM jobs WHERE title != ? ORDER BY title').all('')
+    .map((r) => r.title).filter(Boolean);
+  const all = [...new Set([...CURATED_POSITIONS, ...fromDb])];
+  const filtered = q ? all.filter((t) => t.toLowerCase().includes(q)) : all;
+  res.json(filtered.slice(0, 10));
+});
+
 app.post('/api/searches', (req, res) => {
   const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', remoteOnly = false, active = true } = req.body ?? {};
   if (!name || !String(name).trim()) {
