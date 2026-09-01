@@ -19,10 +19,43 @@ const JOB_TYPES = [
   { value: 'I', label: 'Pasantía' }
 ];
 const WORK_TYPES = [
-  { value: '1', label: 'Remoto' },
-  { value: '2', label: 'Híbrido' },
-  { value: '3', label: 'Presencial' }
+  { value: '1', label: 'Presencial' },
+  { value: '2', label: 'Remoto' },
+  { value: '3', label: 'Híbrido' }
 ];
+const CONTINENTS = [
+  { value: 'Europa', label: 'Europa' },
+  { value: 'Norteamérica', label: 'Norteamérica' },
+  { value: 'Sudamérica', label: 'Sudamérica' },
+  { value: 'Asia', label: 'Asia' }
+];
+const COUNTRIES = [
+  { value: 'AR', label: 'Argentina' },
+  { value: 'ES', label: 'España' },
+  { value: 'MX', label: 'México' },
+  { value: 'BR', label: 'Brasil' },
+  { value: 'CL', label: 'Chile' },
+  { value: 'UY', label: 'Uruguay' },
+  { value: 'CO', label: 'Colombia' },
+  { value: 'PE', label: 'Perú' },
+  { value: 'US', label: 'Estados Unidos' },
+  { value: 'CA', label: 'Canadá' },
+  { value: 'GB', label: 'Reino Unido' },
+  { value: 'DE', label: 'Alemania' },
+  { value: 'FR', label: 'Francia' },
+  { value: 'PT', label: 'Portugal' },
+  { value: 'NL', label: 'Países Bajos' },
+  { value: 'IE', label: 'Irlanda' },
+  { value: 'IT', label: 'Italia' },
+  { value: 'IN', label: 'India' },
+  { value: 'SG', label: 'Singapur' }
+];
+const CONTINENT_COUNTRIES = {
+  Europa: ['ES', 'GB', 'DE', 'FR', 'PT', 'NL', 'IE', 'IT'],
+  Norteamérica: ['US', 'CA', 'MX'],
+  Sudamérica: ['AR', 'BR', 'CL', 'UY', 'CO', 'PE'],
+  Asia: ['IN', 'SG']
+};
 const TIME_POSTED = [
   { value: '', label: 'Cualquier fecha' },
   { value: 'r86400', label: 'Últimas 24 hs' },
@@ -32,7 +65,7 @@ const TIME_POSTED = [
 
 const emptyDraft = {
   name: '', keywords: '', location: '', geoId: '',
-  experienceLevels: [], jobTypes: [], workTypes: [], timePosted: '', companyId: '', active: true
+  experienceLevels: [], jobTypes: [], workTypes: [], countries: [], timePosted: '', companyId: '', active: true
 };
 
 function MultiCheck({ options, values, onChange }) {
@@ -116,11 +149,20 @@ export default function BusquedasPage() {
     setEditingId(s.id);
     setDraft({
       name: s.name, keywords: s.keywords, location: s.location, geoId: s.geo_id,
-      experienceLevels: s.experienceLevels, jobTypes: s.jobTypes, workTypes: s.workTypes,
+      experienceLevels: s.experienceLevels, jobTypes: s.jobTypes, workTypes: s.workTypes, countries: s.countries,
       timePosted: s.time_posted, companyId: s.company_id, active: s.active
     });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const toggleContinent = (continent) => {
+    const codes = CONTINENT_COUNTRIES[continent.value] ?? [];
+    const on = codes.every((c) => draft.countries.includes(c));
+    const countries = on
+      ? draft.countries.filter((c) => !codes.includes(c))
+      : [...new Set([...draft.countries, ...codes])];
+    setDraft({ ...draft, countries });
   };
 
   const removeSearch = async (s) => {
@@ -162,12 +204,19 @@ export default function BusquedasPage() {
     const parts = [];
     if (s.keywords) parts.push(s.keywords);
     if (s.location) parts.push(s.location);
+    if (s.countries?.length) {
+      const labels = COUNTRIES.filter((o) => s.countries.includes(o.value)).map((o) => o.label);
+      parts.push(labels.join(', '));
+    }
     if (s.experienceLevels.length) {
       const labels = EXPERIENCE_LEVELS.filter((o) => s.experienceLevels.includes(o.value)).map((o) => o.label);
       parts.push(labels.join(', '));
     }
     if (s.jobTypes.length) parts.push('Tipos: ' + s.jobTypes.length);
-    if (s.workTypes.length) parts.push('Modalidad: ' + s.workTypes.length);
+    if (s.workTypes.length) {
+      const labels = WORK_TYPES.filter((o) => s.workTypes.includes(o.value)).map((o) => o.label);
+      parts.push('Modalidad: ' + labels.join(', '));
+    }
     const tp = TIME_POSTED.find((o) => o.value === s.time_posted);
     if (tp && tp.value) parts.push(tp.label);
     return parts.join(' · ');
@@ -218,6 +267,32 @@ export default function BusquedasPage() {
               <span className="mb-1 block text-xs font-medium text-slate-500">Tipo de empleo</span>
               <MultiCheck options={JOB_TYPES} values={draft.jobTypes}
                 onChange={(jobTypes) => setDraft({ ...draft, jobTypes })} />
+            </div>
+            <div className="sm:col-span-2">
+              <span className="mb-1 block text-xs font-medium text-slate-500">Países / Continentes</span>
+              <div className="mb-1.5 flex flex-wrap gap-1.5">
+                {CONTINENTS.map((c) => {
+                  const codes = CONTINENT_COUNTRIES[c.value];
+                  const on = codes.every((cc) => draft.countries.includes(cc));
+                  return (
+                    <button
+                      key={c.value}
+                      type="button"
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                        on ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-300 text-slate-500 hover:border-slate-400'
+                      }`}
+                      onClick={() => toggleContinent(c)}
+                    >
+                      {on ? '✓ ' : ''}{c.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <MultiCheck options={COUNTRIES} values={draft.countries}
+                onChange={(countries) => setDraft({ ...draft, countries })} />
+              <p className="mt-1 text-[11px] text-slate-400">
+                Sugerencia: Argentina → híbrido, resto del mundo → remoto (automático). Elegí modalidad manual para anularlo.
+              </p>
             </div>
             <div className="sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Modalidad</span>

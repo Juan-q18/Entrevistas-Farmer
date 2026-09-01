@@ -6,7 +6,7 @@ import { parseCvColumns } from './cvParser.js';
 import { extractPdfColumns } from './pdfText.js';
 import { renderCvPdf, TEMPLATES } from './cvPdf.js';
 import { getMaskedSettings, saveSettings, improveText, testConnection, translateCv, extractSkills } from './ai.js';
-import { fetchLinkedInJobs, fetchJobDescription } from './linkedin.js';
+import { fetchLinkedInJobs, fetchJobDescription, expandCountries, workTypeForCountry } from './linkedin.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -149,6 +149,7 @@ function serializeSearch(row) {
     experienceLevels: parseJson(row.experience_levels, []),
     jobTypes: parseJson(row.job_types, []),
     workTypes: parseJson(row.work_types, []),
+    countries: parseJson(row.countries, []),
     active: !!row.active
   };
 }
@@ -159,16 +160,16 @@ app.get('/api/searches', (_req, res) => {
 });
 
 app.post('/api/searches', (req, res) => {
-  const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], timePosted = '', companyId = '', active = true } = req.body ?? {};
+  const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', active = true } = req.body ?? {};
   if (!name || !String(name).trim()) {
     return res.status(400).json({ error: 'name es obligatorio' });
   }
   const info = db.prepare(`
-    INSERT INTO searches (name, keywords, location, geo_id, experience_levels, job_types, work_types, time_posted, company_id, active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO searches (name, keywords, location, geo_id, experience_levels, job_types, work_types, countries, time_posted, company_id, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     String(name).trim(), keywords, location, geoId,
-    JSON.stringify(experienceLevels), JSON.stringify(jobTypes), JSON.stringify(workTypes),
+    JSON.stringify(experienceLevels), JSON.stringify(jobTypes), JSON.stringify(workTypes), JSON.stringify(countries),
     timePosted, companyId, active ? 1 : 0
   );
   const row = db.prepare('SELECT * FROM searches WHERE id = ?').get(info.lastInsertRowid);
@@ -176,14 +177,14 @@ app.post('/api/searches', (req, res) => {
 });
 
 app.put('/api/searches/:id', (req, res) => {
-  const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], timePosted = '', companyId = '', active = true } = req.body ?? {};
+  const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', active = true } = req.body ?? {};
   const info = db.prepare(`
     UPDATE searches SET
-      name = ?, keywords = ?, location = ?, geo_id = ?, experience_levels = ?, job_types = ?, work_types = ?, time_posted = ?, company_id = ?, active = ?
+      name = ?, keywords = ?, location = ?, geo_id = ?, experience_levels = ?, job_types = ?, work_types = ?, countries = ?, time_posted = ?, company_id = ?, active = ?
     WHERE id = ?
   `).run(
     String(name).trim(), keywords, location, geoId,
-    JSON.stringify(experienceLevels), JSON.stringify(jobTypes), JSON.stringify(workTypes),
+    JSON.stringify(experienceLevels), JSON.stringify(jobTypes), JSON.stringify(workTypes), JSON.stringify(countries),
     timePosted, companyId, active ? 1 : 0, Number(req.params.id)
   );
   if (info.changes === 0) return res.status(404).json({ error: 'Búsqueda no encontrada' });
@@ -271,29 +272,52 @@ app.post('/api/jobs/fetch', async (req, res) => {
     if (!search?.keywords && !search?.location && !search?.companyId) {
       return res.status(400).json({ error: 'La búsqueda necesita keywords, ubicación o empresa' });
     }
-    const fetched = await fetchLinkedInJobs(search);
+
+    // expandir países/continentes seleccionados → lista de { code, geoId, name }
+    const countryList = expandCountries(search.countries ?? []);
+    // variantes de búsqueda: una por país (cada una con su geoId y work type)
+    const variants = [];
+    if (countryList.length) {
+      for (const c of countryList) {
+        const manual = search.workTypes?.length ? search.workTypes : [workTypeForCountry(c.code)];
+        variants.push({ ...search, geoId: c.geoId, workTypes: manual, location: '' });
+      }
+    } else {
+      const manual = search.workTypes?.length ? search.workTypes : (search.geoId ? search.workTypes : []);
+      variants.push({ ...search, workTypes: manual });
+    }
+
     const find = db.prepare('SELECT id FROM jobs WHERE linkedin_id = ?');
     const insert = db.prepare(
-      'INSERT INTO jobs (linkedin_id, title, company, location, url, description, posted_date) VALUES (?, ?, ?, ?, ?, \'\', ?)'
+      'INSERT INTO jobs (linkedin_id, title, company, location, url, description, posted_date, remote, country) VALUES (?, ?, ?, ?, ?, \'\', ?, ?, ?)'
     );
-    const update = db.prepare('UPDATE jobs SET title = ?, company = ?, location = ?, posted_date = ? WHERE id = ?');
+    const update = db.prepare('UPDATE jobs SET title = ?, company = ?, location = ?, posted_date = ?, remote = ?, country = ? WHERE id = ?');
     const link = db.prepare('INSERT OR IGNORE INTO job_searches (job_id, search_id) VALUES (?, ?)');
+
     let newCount = 0;
-    for (const j of fetched) {
-      let row = find.get(j.linkedinId);
-      if (!row) {
-        insert.run(j.linkedinId, j.title, j.company, j.location, j.url, j.postedDate);
-        row = find.get(j.linkedinId);
-        newCount += 1;
-      } else {
-        update.run(j.title, j.company, j.location, j.postedDate, row.id);
+    let total = 0;
+    const seen = new Set();
+    for (const variant of variants) {
+      const fetched = await fetchLinkedInJobs(variant);
+      total += fetched.length;
+      for (const j of fetched) {
+        if (seen.has(j.linkedinId)) continue;
+        seen.add(j.linkedinId);
+        let row = find.get(j.linkedinId);
+        if (!row) {
+          insert.run(j.linkedinId, j.title, j.company, j.location, j.url, j.postedDate, j.remote ?? 0, j.country ?? '');
+          row = find.get(j.linkedinId);
+          newCount += 1;
+        } else {
+          update.run(j.title, j.company, j.location, j.postedDate, j.remote ?? 0, j.country ?? '', row.id);
+        }
+        if (searchId && row) link.run(row.id, searchId);
       }
-      if (searchId && row) link.run(row.id, searchId);
     }
     if (searchId) {
       db.prepare("UPDATE searches SET last_run_at = datetime('now') WHERE id = ?").run(searchId);
     }
-    res.json({ fetched: fetched.length, new: newCount });
+    res.json({ fetched: total, new: newCount });
   } catch (err) {
     console.error('Error al traer ofertas:', err.message);
     res.status(502).json({ error: err.message });

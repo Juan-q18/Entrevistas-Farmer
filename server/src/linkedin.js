@@ -1,5 +1,87 @@
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
+// f_WT nativo de LinkedIn: 1=Presencial, 2=Remoto, 3=Híbrido
+export const WORK_TYPE_VALUES = {
+  on_site: '1',
+  remote: '2',
+  hybrid: '3'
+};
+
+export const COUNTRIES = [
+  { code: 'AR', name: 'Argentina', geoId: '100519571', names: ['argentina'] },
+  { code: 'ES', name: 'España', geoId: '105646813', names: ['españa', 'spain'] },
+  { code: 'MX', name: 'México', geoId: '103957667', names: ['méxico', 'mexico'] },
+  { code: 'BR', name: 'Brasil', geoId: '106057199', names: ['brasil', 'brazil'] },
+  { code: 'CL', name: 'Chile', geoId: '100365931', names: ['chile'] },
+  { code: 'UY', name: 'Uruguay', geoId: '104077954', names: ['uruguay'] },
+  { code: 'CO', name: 'Colombia', geoId: '100604021', names: ['colombia'] },
+  { code: 'PE', name: 'Perú', geoId: '101404507', names: ['perú', 'peru'] },
+  { code: 'US', name: 'Estados Unidos', geoId: '103644278', names: ['estados unidos', 'united states', 'ee. uu.', 'eeuu', 'usa'] },
+  { code: 'CA', name: 'Canadá', geoId: '101174742', names: ['canadá', 'canada'] },
+  { code: 'GB', name: 'Reino Unido', geoId: '101165590', names: ['reino unido', 'united kingdom', 'uk', 'england'] },
+  { code: 'DE', name: 'Alemania', geoId: '101282230', names: ['alemania', 'germany'] },
+  { code: 'FR', name: 'Francia', geoId: '105015875', names: ['francia', 'france'] },
+  { code: 'PT', name: 'Portugal', geoId: '103890388', names: ['portugal'] },
+  { code: 'NL', name: 'Países Bajos', geoId: '102890883', names: ['países bajos', 'netherlands', 'holanda'] },
+  { code: 'IE', name: 'Irlanda', geoId: '105607864', names: ['irlanda', 'ireland'] },
+  { code: 'IT', name: 'Italia', geoId: '103350119', names: ['italia', 'italy'] },
+  { code: 'IN', name: 'India', geoId: '102713980', names: ['india'] },
+  { code: 'SG', name: 'Singapur', geoId: '106693599', names: ['singapur', 'singapore'] }
+];
+
+export const CONTINENTS = [
+  { name: 'Europa', countries: ['ES', 'GB', 'DE', 'FR', 'PT', 'NL', 'IE', 'IT'] },
+  { name: 'Norteamérica', countries: ['US', 'CA', 'MX'] },
+  { name: 'Sudamérica', countries: ['AR', 'BR', 'CL', 'UY', 'CO', 'PE'] },
+  { name: 'Asia', countries: ['IN', 'SG'] }
+];
+
+const COUNTRY_BY_CODE = Object.fromEntries(COUNTRIES.map((c) => [c.code, c]));
+
+// ciudades conocidas → país (para locations que solo traen la ciudad)
+const CITY_COUNTRY = {
+  'madrid': 'España', 'barcelona': 'España', 'valencia': 'España', 'sevilla': 'España',
+  'bilbao': 'España', 'zaragoza': 'España', 'málaga': 'España', 'malaga': 'España',
+  'granada': 'España', 'palma': 'España', 'alicante': 'España', 'tres cantos': 'España',
+  'buenos aires': 'Argentina', 'córdoba': 'Argentina', 'rosario': 'Argentina',
+  'mendoza': 'Argentina', 'la plata': 'Argentina',
+  'méxico': 'México', 'mexico city': 'México', 'guadalajara': 'México', 'monterrey': 'México',
+  'são paulo': 'Brasil', 'sao paulo': 'Brasil', 'río de janeiro': 'Brasil', 'rio de janeiro': 'Brasil',
+  'santiago': 'Chile', 'montevideo': 'Uruguay', 'bogotá': 'Colombia', 'bogota': 'Colombia',
+  'medellín': 'Colombia', 'medellin': 'Colombia', 'lima': 'Perú',
+  'nueva york': 'Estados Unidos', 'new york': 'Estados Unidos', 'miami': 'Estados Unidos',
+  'los ángeles': 'Estados Unidos', 'los angeles': 'Estados Unidos', 'chicago': 'Estados Unidos',
+  'houston': 'Estados Unidos', 'austin': 'Estados Unidos', 'seattle': 'Estados Unidos',
+  'toronto': 'Canadá', 'vancouver': 'Canadá', 'montreal': 'Canadá',
+  'londres': 'Reino Unido', 'london': 'Reino Unido', 'manchester': 'Reino Unido',
+  'birmingham': 'Reino Unido', 'edimburgo': 'Reino Unido', 'edinburgh': 'Reino Unido',
+  'belfast': 'Reino Unido', 'cardiff': 'Reino Unido', 'bristol': 'Reino Unido',
+  'berlín': 'Alemania', 'berlin': 'Alemania', 'múnich': 'Alemania', 'munich': 'Alemania',
+  'hamburgo': 'Alemania', 'hamburg': 'Alemania', 'frankfurt': 'Alemania',
+  'parís': 'Francia', 'paris': 'Francia', 'lyon': 'Francia', 'burdeos': 'Francia',
+  'lisboa': 'Portugal', 'oporto': 'Portugal', 'porto': 'Portugal',
+  'amsterdam': 'Países Bajos', 'rotterdam': 'Países Bajos',
+  'dublín': 'Irlanda', 'dublin': 'Irlanda', 'roma': 'Italia', 'rome': 'Italia',
+  'milán': 'Italia', 'milan': 'Italia', 'nueva delhi': 'India', 'new delhi': 'India',
+  'bombay': 'India', 'mumbai': 'India', 'bangalore': 'India', 'singapur': 'Singapur'
+};
+
+// expande selección de países/continentes a lista de países con geoId
+export function expandCountries(selected = []) {
+  const codes = new Set();
+  for (const s of selected) {
+    const continent = CONTINENTS.find((c) => c.name === s);
+    if (continent) continent.countries.forEach((code) => codes.add(code));
+    else if (COUNTRY_BY_CODE[s]) codes.add(s);
+  }
+  return [...codes].map((code) => COUNTRY_BY_CODE[code]).filter(Boolean);
+}
+
+// work type automático por país: Argentina → híbrido, resto → remoto
+export function workTypeForCountry(code) {
+  return code === 'AR' ? WORK_TYPE_VALUES.hybrid : WORK_TYPE_VALUES.remote;
+}
+
 export function buildSearchUrl(search) {
   const p = new URLSearchParams();
   if (search.keywords) p.set('keywords', search.keywords);
@@ -27,6 +109,34 @@ function clean(s) {
     .trim();
 }
 
+// detecta país y remoto a partir de la location libre de LinkedIn
+function enrichLocation(location) {
+  const loc = (location || '').toLowerCase();
+  const remote = /\bremote\b|\bremoto\b/i.test(location) ? 1 : 0;
+  let country = '';
+  for (const c of COUNTRIES) {
+    if (c.names.some((n) => loc.includes(n))) {
+      country = c.name;
+      break;
+    }
+  }
+  if (!country) {
+    // ciudad conocida → país
+    for (const [city, name] of Object.entries(CITY_COUNTRY)) {
+      if (loc.includes(city)) {
+        country = name;
+        break;
+      }
+    }
+  }
+  if (!country) {
+    // último segmento tras la última coma (ej: "Buenos Aires, Argentina" → "Argentina")
+    const last = String(location ?? '').split(',').pop()?.trim();
+    if (last && !/\bremote\b|\bremoto\b/i.test(last)) country = last;
+  }
+  return { remote, country };
+}
+
 export function parseJobCards(html) {
   const cards = html.split(/<div class="base-card /g).slice(1);
   const jobs = [];
@@ -38,13 +148,16 @@ export function parseJobCards(html) {
     const location = clean(card.match(/job-search-card__location[^>]*>([\s\S]*?)<\/span>/)?.[1]);
     const date = clean(card.match(/job-search-card__listdate[^>]*>([\s\S]*?)<\/time>/)?.[1]);
     if (!title) continue;
+    const { remote, country } = enrichLocation(location);
     jobs.push({
       linkedinId: id,
       title,
       company,
       location,
       url: `https://www.linkedin.com/jobs/view/${id}`,
-      postedDate: date
+      postedDate: date,
+      remote,
+      country
     });
   }
   return jobs;

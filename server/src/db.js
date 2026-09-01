@@ -79,6 +79,19 @@ if (!cvCols.includes('raw_text')) {
   db.exec("ALTER TABLE cv ADD COLUMN raw_text TEXT NOT NULL DEFAULT ''");
 }
 
+const searchCols = db.prepare('PRAGMA table_info(searches)').all().map((c) => c.name);
+if (!searchCols.includes('countries')) {
+  db.exec("ALTER TABLE searches ADD COLUMN countries TEXT NOT NULL DEFAULT '[]'");
+}
+
+const jobCols = db.prepare('PRAGMA table_info(jobs)').all().map((c) => c.name);
+if (!jobCols.includes('remote')) {
+  db.exec('ALTER TABLE jobs ADD COLUMN remote INTEGER NOT NULL DEFAULT 0');
+}
+if (!jobCols.includes('country')) {
+  db.exec("ALTER TABLE jobs ADD COLUMN country TEXT NOT NULL DEFAULT ''");
+}
+
 export default db;
 
 export function parseJson(text, fallback) {

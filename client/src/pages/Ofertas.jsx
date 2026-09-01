@@ -33,6 +33,8 @@ function Highlight({ text, q }) {
 export default function OfertasPage() {
   const [allJobs, setAllJobs] = useState([]);
   const [statusFilter, setStatusFilter] = useState('todas');
+  const [countryFilter, setCountryFilter] = useState('');
+  const [remoteOnly, setRemoteOnly] = useState(false);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
@@ -62,7 +64,11 @@ export default function OfertasPage() {
     return (j.title + ' ' + (j.company ?? '') + ' ' + (j.location ?? '')).toLowerCase().includes(t);
   };
 
-  const qAll = allJobs.filter(matchesQ);
+  const countries = [...new Set(allJobs.map((j) => j.country).filter(Boolean))].sort();
+
+  const qAll = allJobs.filter(matchesQ)
+    .filter((j) => !countryFilter || j.country === countryFilter)
+    .filter((j) => !remoteOnly || j.remote === 1);
   const jobs = qAll.filter((j) => statusFilter === 'todas' || j.status === statusFilter);
   const count = (status) => (status === 'todas' ? qAll.length : qAll.filter((j) => j.status === status).length);
 
@@ -208,6 +214,27 @@ export default function OfertasPage() {
             {s.label} ({count(s.value)})
           </button>
         ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none"
+          value={countryFilter}
+          onChange={(e) => setCountryFilter(e.target.value)}
+        >
+          <option value="">Todos los países</option>
+          {countries.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <button
+          className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+            remoteOnly ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 text-slate-600 hover:border-slate-400'
+          }`}
+          onClick={() => setRemoteOnly(!remoteOnly)}
+        >
+          🌍 Full remoto
+        </button>
       </div>
 
       {jobs.length === 0 && (
