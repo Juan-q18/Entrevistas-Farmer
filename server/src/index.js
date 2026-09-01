@@ -6,9 +6,12 @@ import { parseCvColumns } from './cvParser.js';
 import { extractPdfColumns } from './pdfText.js';
 import { renderCvPdf, TEMPLATES } from './cvPdf.js';
 import { getMaskedSettings, saveSettings, improveText, testConnection, translateCv, extractSkills, detectLang } from './ai.js';
-import { fetchLinkedInJobs, fetchJobDescription, expandCountries, workTypeForCountry } from './linkedin.js';
+import { fetchLinkedInJobs, fetchJobDescription, expandCountries, workTypeForCountry, LinkedInBlockedError } from './linkedin.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+const BLOCK_COOLDOWN_MS = 3 * 60 * 1000; // 3 minutos
+let lastLinkedInBlock = 0;
 
 const app = express();
 app.use(cors());
@@ -263,6 +266,10 @@ app.get('/api/jobs/:id/description', async (req, res) => {
 
 app.post('/api/jobs/fetch', async (req, res) => {
   try {
+    if (Date.now() - lastLinkedInBlock < BLOCK_COOLDOWN_MS) {
+      const wait = Math.ceil((BLOCK_COOLDOWN_MS - (Date.now() - lastLinkedInBlock)) / 1000 / 60);
+      return res.status(429).json({ error: `LinkedIn te bloqueó hace un momento. Esperá ~${wait} min y volvé a intentar.` });
+    }
     let search = req.body?.search;
     let searchId = null;
     if (req.body?.searchId) {
@@ -301,8 +308,17 @@ app.post('/api/jobs/fetch', async (req, res) => {
     let total = 0;
     const seen = new Set();
     for (let vi = 0; vi < variants.length; vi++) {
-      if (vi > 0) await new Promise((r) => setTimeout(r, 2500));
-      const fetched = await fetchLinkedInJobs(variants[vi]);
+      if (vi > 0) await new Promise((r) => setTimeout(r, 7000));
+      let fetched;
+      try {
+        fetched = await fetchLinkedInJobs(variants[vi]);
+      } catch (err) {
+        if (err instanceof LinkedInBlockedError) {
+          lastLinkedInBlock = Date.now();
+          return res.status(429).json({ error: err.message + ' Esperá ~3 minutos antes de volver a intentar.' });
+        }
+        throw err;
+      }
       total += fetched.length;
       for (const j of fetched) {
         if (seen.has(j.linkedinId)) continue;

@@ -165,6 +165,13 @@ export function parseJobCards(html) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+export class LinkedInBlockedError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'LinkedInBlockedError';
+  }
+}
+
 async function fetchHtml(url, { label = 'búsqueda' } = {}) {
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -181,20 +188,20 @@ async function fetchHtml(url, { label = 'búsqueda' } = {}) {
       });
       if (res.status === 999 || res.status === 429) {
         if (attempt < maxAttempts) {
-          await sleep(4000 * attempt);
+          await sleep(8000 * attempt);
           continue;
         }
-        throw new Error(`LinkedIn bloqueó la ${label} (puede ser temporal). Esperá unos minutos y volvé a intentar.`);
+        throw new LinkedInBlockedError(`LinkedIn bloqueó la ${label} (puede ser temporal). Esperá unos minutos y volvé a intentar.`);
       }
       if (res.status === 404) throw new Error('Este puesto ya no existe en LinkedIn (fue removido o expiró).');
       if (!res.ok) throw new Error(`LinkedIn respondió HTTP ${res.status}`);
       const html = await res.text();
       if (html.includes('captcha') || html.includes('securescripts') || html.length < 500) {
         if (attempt < maxAttempts) {
-          await sleep(5000 * attempt);
+          await sleep(10000 * attempt);
           continue;
         }
-        throw new Error(`LinkedIn pidió verificación de seguridad en la ${label}. Probá de nuevo en unos minutos o reducí la cantidad de países/filtros.`);
+        throw new LinkedInBlockedError(`LinkedIn pidió verificación de seguridad en la ${label}. Probá de nuevo en unos minutos o reducí la cantidad de países/filtros.`);
       }
       return html;
     } finally {
