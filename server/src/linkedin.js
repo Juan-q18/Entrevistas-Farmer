@@ -1,4 +1,10 @@
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+const UA_POOL = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0'
+];
+const getUA = (seed) => UA_POOL[seed % UA_POOL.length];
 
 // f_WT nativo de LinkedIn: 1=Presencial, 2=Remoto, 3=Híbrido
 export const WORK_TYPE_VALUES = {
@@ -109,10 +115,14 @@ function clean(s) {
     .trim();
 }
 
+const REMOTE_RE = /\b(remote|remoto|100\s*%\s*remote|fully\s*remote|work\s*from\s*anywhere|work\s*from\s*home|wfh|teletrabajo|home\s*office|remote[- ]first)\b/i;
+const ONSITE_RE = /\b(on.?site|presencial|in\s*office|office\s*based)\b/i;
+
 // detecta país y remoto a partir de la location libre de LinkedIn
 function enrichLocation(location) {
   const loc = (location || '').toLowerCase();
-  const remote = /\bremote\b|\bremoto\b/i.test(location) ? 1 : 0;
+  const remote = REMOTE_RE.test(location) ? 1 : 0;
+  const onsite = ONSITE_RE.test(location) && !REMOTE_RE.test(location) ? 1 : 0;
   let country = '';
   for (const c of COUNTRIES) {
     if (c.names.some((n) => loc.includes(n))) {
@@ -132,9 +142,9 @@ function enrichLocation(location) {
   if (!country) {
     // último segmento tras la última coma (ej: "Buenos Aires, Argentina" → "Argentina")
     const last = String(location ?? '').split(',').pop()?.trim();
-    if (last && !/\bremote\b|\bremoto\b/i.test(last)) country = last;
+    if (last && !REMOTE_RE.test(last)) country = last;
   }
-  return { remote, country };
+  return { remote, onsite, country };
 }
 
 export function parseJobCards(html) {
@@ -148,7 +158,7 @@ export function parseJobCards(html) {
     const location = clean(card.match(/job-search-card__location[^>]*>([\s\S]*?)<\/span>/)?.[1]);
     const date = clean(card.match(/job-search-card__listdate[^>]*>([\s\S]*?)<\/time>/)?.[1]);
     if (!title) continue;
-    const { remote, country } = enrichLocation(location);
+    const { remote, onsite, country } = enrichLocation(location);
     jobs.push({
       linkedinId: id,
       title,
@@ -157,6 +167,7 @@ export function parseJobCards(html) {
       url: `https://www.linkedin.com/jobs/view/${id}`,
       postedDate: date,
       remote,
+      onsite,
       country
     });
   }
@@ -180,7 +191,7 @@ async function fetchHtml(url, { label = 'búsqueda' } = {}) {
     try {
       const res = await fetch(url, {
         headers: {
-          'User-Agent': UA,
+          'User-Agent': getUA(attempt),
           Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
         },

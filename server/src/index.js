@@ -10,7 +10,7 @@ import { fetchLinkedInJobs, fetchJobDescription, expandCountries, workTypeForCou
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-const BLOCK_COOLDOWN_MS = 3 * 60 * 1000; // 3 minutos
+const BLOCK_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutos
 let lastLinkedInBlock = 0;
 
 const app = express();
@@ -308,7 +308,7 @@ app.post('/api/jobs/fetch', async (req, res) => {
     let total = 0;
     const seen = new Set();
     for (let vi = 0; vi < variants.length; vi++) {
-      if (vi > 0) await new Promise((r) => setTimeout(r, 7000));
+      if (vi > 0) await new Promise((r) => setTimeout(r, 10000));
       let fetched;
       try {
         fetched = await fetchLinkedInJobs(variants[vi]);
@@ -323,7 +323,7 @@ app.post('/api/jobs/fetch', async (req, res) => {
       for (const j of fetched) {
         if (seen.has(j.linkedinId)) continue;
         seen.add(j.linkedinId);
-        if (forceRemote && j.remote !== 1) continue;
+        if (forceRemote && j.onsite === 1) continue;
         const lang = detectLang(j.title);
         let row = find.get(j.linkedinId);
         if (!row) {
