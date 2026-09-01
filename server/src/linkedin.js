@@ -229,7 +229,7 @@ function htmlToText(html) {
 }
 
 export async function fetchJobDescription(linkedinId) {
-  const html = await fetchHtml(`https://www.linkedin.com/jobs/view/${linkedinId}`, { label: 'descripción' });
+  const html = await fetchHtml(`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${linkedinId}`, { label: 'descripción' });
   if (html.slice(0, 20000).includes('authwall')) {
     throw new Error('LinkedIn pide login para ver este puesto.');
   }
