@@ -163,31 +163,51 @@ export function parseJobCards(html) {
   return jobs;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchHtml(url, { label = 'búsqueda' } = {}) {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 35000);
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': UA,
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
+        },
+        signal: controller.signal
+      });
+      if (res.status === 999 || res.status === 429) {
+        if (attempt < maxAttempts) {
+          await sleep(4000 * attempt);
+          continue;
+        }
+        throw new Error(`LinkedIn bloqueó la ${label} (puede ser temporal). Esperá unos minutos y volvé a intentar.`);
+      }
+      if (res.status === 404) throw new Error('Este puesto ya no existe en LinkedIn (fue removido o expiró).');
+      if (!res.ok) throw new Error(`LinkedIn respondió HTTP ${res.status}`);
+      const html = await res.text();
+      if (html.includes('captcha') || html.includes('securescripts') || html.length < 500) {
+        if (attempt < maxAttempts) {
+          await sleep(5000 * attempt);
+          continue;
+        }
+        throw new Error(`LinkedIn pidió verificación de seguridad en la ${label}. Probá de nuevo en unos minutos o reducí la cantidad de países/filtros.`);
+      }
+      return html;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error(`No se pudo completar la ${label} de LinkedIn`);
+}
+
 export async function fetchLinkedInJobs(search) {
   const url = buildSearchUrl(search);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 35000);
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': UA,
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
-      },
-      signal: controller.signal
-    });
-    if (res.status === 999 || res.status === 429) {
-      throw new Error('LinkedIn bloqueó la búsqueda (puede ser temporal). Esperá unos minutos y volvé a intentar.');
-    }
-    if (!res.ok) throw new Error(`LinkedIn respondió HTTP ${res.status}`);
-    const html = await res.text();
-    if (html.includes('captcha') || html.includes('securescripts') || html.length < 500) {
-      throw new Error('LinkedIn pidió verificación de seguridad. Probá de nuevo más tarde o cambiá los filtros.');
-    }
-    return parseJobCards(html);
-  } finally {
-    clearTimeout(timer);
-  }
+  const html = await fetchHtml(url, { label: 'búsqueda' });
+  return parseJobCards(html);
 }
 
 function htmlToText(html) {
@@ -209,34 +229,15 @@ function htmlToText(html) {
 }
 
 export async function fetchJobDescription(linkedinId) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 35000);
-  try {
-    const res = await fetch(`https://www.linkedin.com/jobs/view/${linkedinId}`, {
-      headers: {
-        'User-Agent': UA,
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
-      },
-      signal: controller.signal
-    });
-    if (res.status === 999 || res.status === 429) {
-      throw new Error('LinkedIn bloqueó el pedido (puede ser temporal). Esperá unos minutos y volvé a intentar.');
-    }
-    if (res.status === 404) throw new Error('Este puesto ya no existe en LinkedIn (fue removido o expiró).');
-    if (!res.ok) throw new Error(`LinkedIn respondió HTTP ${res.status}`);
-    const html = await res.text();
-    if (res.url.includes('/authwall') || html.slice(0, 20000).includes('authwall')) {
-      throw new Error('LinkedIn pide login para ver este puesto.');
-    }
-    const block =
-      html.match(/class="show-more-less-html__markup[^"]*"[^>]*>([\s\S]*?)<\/div>/) ??
-      html.match(/description__text[^>]*>([\s\S]*?)<\/div>/);
-    if (!block) throw new Error('No se pudo extraer la descripción de este puesto.');
-    const text = htmlToText(block[1]);
-    if (text.length < 30) throw new Error('No se pudo extraer la descripción de este puesto.');
-    return text;
-  } finally {
-    clearTimeout(timer);
+  const html = await fetchHtml(`https://www.linkedin.com/jobs/view/${linkedinId}`, { label: 'descripción' });
+  if (html.slice(0, 20000).includes('authwall')) {
+    throw new Error('LinkedIn pide login para ver este puesto.');
   }
+  const block =
+    html.match(/class="show-more-less-html__markup[^"]*"[^>]*>([\s\S]*?)<\/div>/) ??
+    html.match(/description__text[^>]*>([\s\S]*?)<\/div>/);
+  if (!block) throw new Error('No se pudo extraer la descripción de este puesto.');
+  const text = htmlToText(block[1]);
+  if (text.length < 30) throw new Error('No se pudo extraer la descripción de este puesto.');
+  return text;
 }

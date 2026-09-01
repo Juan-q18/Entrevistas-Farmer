@@ -5,7 +5,7 @@ import db, { parseJson } from './db.js';
 import { parseCvColumns } from './cvParser.js';
 import { extractPdfColumns } from './pdfText.js';
 import { renderCvPdf, TEMPLATES } from './cvPdf.js';
-import { getMaskedSettings, saveSettings, improveText, testConnection, translateCv, extractSkills } from './ai.js';
+import { getMaskedSettings, saveSettings, improveText, testConnection, translateCv, extractSkills, detectLang } from './ai.js';
 import { fetchLinkedInJobs, fetchJobDescription, expandCountries, workTypeForCountry } from './linkedin.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -247,12 +247,13 @@ app.patch('/api/jobs/:id', (req, res) => {
 });
 
 app.get('/api/jobs/:id/description', async (req, res) => {
-  const row = db.prepare('SELECT id, description, url FROM jobs WHERE id = ?').get(req.params.id);
+  const row = db.prepare('SELECT id, title, description, url FROM jobs WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Oferta no encontrada' });
   if (row.description) return res.json({ description: row.description, cached: true });
   try {
     const description = await fetchJobDescription(row.url.split('/').filter(Boolean).pop() || String(req.params.id));
-    db.prepare('UPDATE jobs SET description = ? WHERE id = ?').run(description, row.id);
+    const lang = detectLang(`${row.title} ${description}`);
+    db.prepare('UPDATE jobs SET description = ?, language = ? WHERE id = ?').run(description, lang === 'unknown' ? '' : lang, row.id);
     res.json({ description, cached: false });
   } catch (err) {
     res.status(502).json({ error: err.message });
@@ -289,27 +290,29 @@ app.post('/api/jobs/fetch', async (req, res) => {
 
     const find = db.prepare('SELECT id FROM jobs WHERE linkedin_id = ?');
     const insert = db.prepare(
-      'INSERT INTO jobs (linkedin_id, title, company, location, url, description, posted_date, remote, country) VALUES (?, ?, ?, ?, ?, \'\', ?, ?, ?)'
+      'INSERT INTO jobs (linkedin_id, title, company, location, url, description, posted_date, remote, country, language) VALUES (?, ?, ?, ?, ?, \'\', ?, ?, ?, ?)'
     );
-    const update = db.prepare('UPDATE jobs SET title = ?, company = ?, location = ?, posted_date = ?, remote = ?, country = ? WHERE id = ?');
+    const update = db.prepare('UPDATE jobs SET title = ?, company = ?, location = ?, posted_date = ?, remote = ?, country = ?, language = ? WHERE id = ?');
     const link = db.prepare('INSERT OR IGNORE INTO job_searches (job_id, search_id) VALUES (?, ?)');
 
     let newCount = 0;
     let total = 0;
     const seen = new Set();
-    for (const variant of variants) {
-      const fetched = await fetchLinkedInJobs(variant);
+    for (let vi = 0; vi < variants.length; vi++) {
+      if (vi > 0) await new Promise((r) => setTimeout(r, 2500));
+      const fetched = await fetchLinkedInJobs(variants[vi]);
       total += fetched.length;
       for (const j of fetched) {
         if (seen.has(j.linkedinId)) continue;
         seen.add(j.linkedinId);
+        const lang = detectLang(j.title);
         let row = find.get(j.linkedinId);
         if (!row) {
-          insert.run(j.linkedinId, j.title, j.company, j.location, j.url, j.postedDate, j.remote ?? 0, j.country ?? '');
+          insert.run(j.linkedinId, j.title, j.company, j.location, j.url, j.postedDate, j.remote ?? 0, j.country ?? '', lang === 'unknown' ? '' : lang);
           row = find.get(j.linkedinId);
           newCount += 1;
         } else {
-          update.run(j.title, j.company, j.location, j.postedDate, j.remote ?? 0, j.country ?? '', row.id);
+          update.run(j.title, j.company, j.location, j.postedDate, j.remote ?? 0, j.country ?? '', lang === 'unknown' ? '' : lang, row.id);
         }
         if (searchId && row) link.run(row.id, searchId);
       }

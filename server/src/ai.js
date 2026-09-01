@@ -165,7 +165,7 @@ const EN_WORDS = new Set([
   'receive','specific','previously','currently',
 ]);
 
-function detectLang(text) {
+export function detectLang(text) {
   if (!text || typeof text !== 'string') return 'unknown';
   const clean = text.toLowerCase().replace(/[^a-záéíóúüñ\s]/g, ' ').trim();
   if (clean.length < 3) return 'unknown';

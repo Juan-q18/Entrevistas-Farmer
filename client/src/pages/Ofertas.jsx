@@ -34,6 +34,7 @@ export default function OfertasPage() {
   const [allJobs, setAllJobs] = useState([]);
   const [statusFilter, setStatusFilter] = useState('todas');
   const [countryFilter, setCountryFilter] = useState('');
+  const [langFilter, setLangFilter] = useState('');
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,9 +66,11 @@ export default function OfertasPage() {
   };
 
   const countries = [...new Set(allJobs.map((j) => j.country).filter(Boolean))].sort();
+  const langs = [...new Set(allJobs.map((j) => j.language).filter(Boolean))].sort();
 
   const qAll = allJobs.filter(matchesQ)
     .filter((j) => !countryFilter || j.country === countryFilter)
+    .filter((j) => !langFilter || j.language === langFilter)
     .filter((j) => !remoteOnly || j.remote === 1);
   const jobs = qAll.filter((j) => statusFilter === 'todas' || j.status === statusFilter);
   const count = (status) => (status === 'todas' ? qAll.length : qAll.filter((j) => j.status === status).length);
@@ -225,6 +228,16 @@ export default function OfertasPage() {
           <option value="">Todos los países</option>
           {countries.map((c) => (
             <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <select
+          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none"
+          value={langFilter}
+          onChange={(e) => setLangFilter(e.target.value)}
+        >
+          <option value="">Todos los idiomas</option>
+          {langs.map((l) => (
+            <option key={l} value={l}>{l === 'es' ? 'Español' : l === 'en' ? 'Inglés' : l}</option>
           ))}
         </select>
         <button

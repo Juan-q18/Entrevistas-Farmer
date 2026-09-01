@@ -91,6 +91,9 @@ if (!jobCols.includes('remote')) {
 if (!jobCols.includes('country')) {
   db.exec("ALTER TABLE jobs ADD COLUMN country TEXT NOT NULL DEFAULT ''");
 }
+if (!jobCols.includes('language')) {
+  db.exec("ALTER TABLE jobs ADD COLUMN language TEXT NOT NULL DEFAULT ''");
+}
 
 export default db;
 

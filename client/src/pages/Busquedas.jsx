@@ -257,6 +257,7 @@ export default function BusquedasPage() {
               <span className="mb-1 block text-xs font-medium text-slate-500">Palabras clave</span>
               <input className={inputCls} value={draft.keywords} placeholder="Ej: qa tester automation"
                 onChange={(e) => setDraft({ ...draft, keywords: e.target.value })} />
+              <span className="mt-1 block text-[11px] text-slate-400">Separar con espacios, ej: qa tester automation</span>
             </label>
             <div className="sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Nivel de experiencia</span>
