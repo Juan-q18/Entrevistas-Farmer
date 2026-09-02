@@ -5,3 +5,4 @@ client/dist/
 mi-cv.pdf
 server/body*.json
 server/scripts/
+.playwright-mcp/
