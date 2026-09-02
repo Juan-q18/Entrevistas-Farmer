@@ -373,7 +373,7 @@ export default function BusquedasPage() {
               <MultiCheck options={COUNTRIES} values={draft.countries}
                 onChange={(countries) => setDraft({ ...draft, countries })} />
               <p className="mt-1 text-[11px] text-slate-400">
-                Sugerencia: Argentina → híbrido, resto del mundo → remoto (automático). Activá "Solo remoto" para buscar solo propuestas remotos en los países elegidos.
+                Sugerencia: Argentina → híbrido, resto del mundo → remoto (automático). Activá "Solo remoto" para buscar jobs remotos globales (Latin America / Work from Anywhere), sin limitar a un país.
               </p>
             </div>
             <div className="sm:col-span-2">

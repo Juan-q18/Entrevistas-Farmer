@@ -301,23 +301,32 @@ app.post('/api/jobs/fetch', async (req, res) => {
 
     // expandir países/continentes seleccionados → lista de { code, geoId, name }
     const MAX_COUNTRIES_PER_FETCH = 5;
-    let countryList = expandCountries(search.countries ?? []);
-    const truncated = countryList.length > MAX_COUNTRIES_PER_FETCH;
-    if (truncated) countryList = countryList.slice(0, MAX_COUNTRIES_PER_FETCH);
+    const forceRemote = !!search.remoteOnly;
+    let truncated = false;
     // variantes de búsqueda: una por país (cada una con su geoId y work type)
     const variants = [];
-    const forceRemote = !!search.remoteOnly;
-    // si se pide solo remoto, inyectar "remote" en las keywords (el guest endpoint
-    // ignora f_WT pero respeta "remote" como término de búsqueda)
-    const baseKeywords = forceRemote && search.keywords ? `${search.keywords} remote` : search.keywords;
-    if (countryList.length) {
-      for (const c of countryList) {
-        const manual = forceRemote ? ['2'] : (search.workTypes?.length ? search.workTypes : [workTypeForCountry(c.code)]);
-        variants.push({ ...search, keywords: baseKeywords, geoId: c.geoId, workTypes: manual, location: '' });
-      }
+    // si se pide solo remoto, buscar GLOBAL sin geoId de país: así LinkedIn
+    // devuelve jobs "Latin America (Remote)" / "Remote (Work from Anywhere)",
+    // que son los que aceptan trabajar desde cualquier país (verificado en vivo
+    // con la UI: keywords + f_WT=2 sin location). Usar geoId de un país forzaba
+    // jobs "Spain (Remote)" que NO aceptan gente desde Argentina.
+    if (forceRemote) {
+      const baseKeywords = search.keywords ? `${search.keywords} remote` : 'remote';
+      // geoId 92000000 = "Remote" (jobs remotos globales, sin país fijo)
+      variants.push({ ...search, keywords: baseKeywords, workTypes: ['2'], location: '', geoId: '92000000' });
     } else {
-      const manual = forceRemote ? ['2'] : (search.workTypes?.length ? search.workTypes : (search.geoId ? search.workTypes : []));
-      variants.push({ ...search, keywords: baseKeywords, workTypes: manual });
+      const countryList = expandCountries(search.countries ?? []);
+      const truncated = countryList.length > MAX_COUNTRIES_PER_FETCH;
+      const sliced = truncated ? countryList.slice(0, MAX_COUNTRIES_PER_FETCH) : countryList;
+      if (sliced.length) {
+        for (const c of sliced) {
+          const manual = search.workTypes?.length ? search.workTypes : [workTypeForCountry(c.code)];
+          variants.push({ ...search, geoId: c.geoId, workTypes: manual, location: '' });
+        }
+      } else {
+        const manual = search.workTypes?.length ? search.workTypes : (search.geoId ? search.workTypes : []);
+        variants.push({ ...search, workTypes: manual });
+      }
     }
 
     const find = db.prepare('SELECT id FROM jobs WHERE linkedin_id = ?');
