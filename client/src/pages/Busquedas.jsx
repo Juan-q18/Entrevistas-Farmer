@@ -373,7 +373,7 @@ export default function BusquedasPage() {
               <MultiCheck options={COUNTRIES} values={draft.countries}
                 onChange={(countries) => setDraft({ ...draft, countries })} />
               <p className="mt-1 text-[11px] text-slate-400">
-                Sugerencia: Argentina → híbrido, resto del mundo → remoto (automático). Activá "Solo remoto desde Argentina" para que solo traiga propuestas que acepten trabajo remoto global.
+                Sugerencia: Argentina → híbrido, resto del mundo → remoto (automático). Activá "Solo remoto" para buscar solo propuestas remotos en los países elegidos.
               </p>
             </div>
             <div className="sm:col-span-2">
@@ -403,7 +403,7 @@ export default function BusquedasPage() {
             <label className="flex items-center gap-2 text-sm text-slate-600">
               <input type="checkbox" checked={draft.remoteOnly}
                 onChange={(e) => setDraft({ ...draft, remoteOnly: e.target.checked })} />
-              🌍 Solo remoto que acepte trabajar desde Argentina
+              🌍 Solo remoto
             </label>
             <button
               className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"

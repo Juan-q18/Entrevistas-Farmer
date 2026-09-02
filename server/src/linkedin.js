@@ -118,11 +118,12 @@ function clean(s) {
 const REMOTE_RE = /\b(remote|remoto|100\s*%\s*remote|fully\s*remote|work\s*from\s*anywhere|work\s*from\s*home|wfh|teletrabajo|home\s*office|remote[- ]first)\b/i;
 const ONSITE_RE = /\b(on.?site|presencial|in\s*office|office\s*based)\b/i;
 
-// detecta país y remoto a partir de la location libre de LinkedIn
-function enrichLocation(location) {
+// detecta país y remoto a partir de la location y el título
+function enrichLocation(location, title = '') {
   const loc = (location || '').toLowerCase();
-  const remote = REMOTE_RE.test(location) ? 1 : 0;
-  const onsite = ONSITE_RE.test(location) && !REMOTE_RE.test(location) ? 1 : 0;
+  const haystack = `${title ?? ''} ${location ?? ''}`;
+  const remote = REMOTE_RE.test(haystack) ? 1 : 0;
+  const onsite = ONSITE_RE.test(haystack) && !REMOTE_RE.test(haystack) ? 1 : 0;
   let country = '';
   for (const c of COUNTRIES) {
     if (c.names.some((n) => loc.includes(n))) {
@@ -158,7 +159,7 @@ export function parseJobCards(html) {
     const location = clean(card.match(/job-search-card__location[^>]*>([\s\S]*?)<\/span>/)?.[1]);
     const date = clean(card.match(/job-search-card__listdate[^>]*>([\s\S]*?)<\/time>/)?.[1]);
     if (!title) continue;
-    const { remote, onsite, country } = enrichLocation(location);
+    const { remote, onsite, country } = enrichLocation(location, title);
     jobs.push({
       linkedinId: id,
       title,
@@ -192,8 +193,14 @@ async function fetchHtml(url, { label = 'búsqueda' } = {}) {
       const res = await fetch(url, {
         headers: {
           'User-Agent': getUA(attempt),
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
+          Accept: '*/*',
+          'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+          'sec-ch-ua': '"Chromium";v="126", "Not:A-Brand";v="24"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+          'sec-fetch-dest': 'empty',
+          'sec-fetch-mode': 'cors',
+          'sec-fetch-site': 'same-origin'
         },
         signal: controller.signal
       });

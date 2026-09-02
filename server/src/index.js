@@ -307,14 +307,17 @@ app.post('/api/jobs/fetch', async (req, res) => {
     // variantes de búsqueda: una por país (cada una con su geoId y work type)
     const variants = [];
     const forceRemote = !!search.remoteOnly;
+    // si se pide solo remoto, inyectar "remote" en las keywords (el guest endpoint
+    // ignora f_WT pero respeta "remote" como término de búsqueda)
+    const baseKeywords = forceRemote && search.keywords ? `${search.keywords} remote` : search.keywords;
     if (countryList.length) {
       for (const c of countryList) {
         const manual = forceRemote ? ['2'] : (search.workTypes?.length ? search.workTypes : [workTypeForCountry(c.code)]);
-        variants.push({ ...search, geoId: c.geoId, workTypes: manual, location: '' });
+        variants.push({ ...search, keywords: baseKeywords, geoId: c.geoId, workTypes: manual, location: '' });
       }
     } else {
       const manual = forceRemote ? ['2'] : (search.workTypes?.length ? search.workTypes : (search.geoId ? search.workTypes : []));
-      variants.push({ ...search, workTypes: manual });
+      variants.push({ ...search, keywords: baseKeywords, workTypes: manual });
     }
 
     const find = db.prepare('SELECT id FROM jobs WHERE linkedin_id = ?');
