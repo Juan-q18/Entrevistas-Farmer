@@ -1,0 +1,26 @@
+- generic [ref=f1e3]:
+  - banner [ref=f1e4]:
+    - generic [ref=f1e5]:
+      - generic [ref=f1e6]: 🌾 Trabajo Farmer
+      - navigation [ref=f1e8]:
+        - link "CV" [ref=f1e9] [cursor=pointer]:
+          - /url: /
+        - link "Búsquedas" [ref=f1e10] [cursor=pointer]:
+          - /url: /busquedas
+        - link "Ofertas" [ref=f1e11] [cursor=pointer]:
+          - /url: /ofertas
+        - link "Configuración" [ref=f1e12] [cursor=pointer]:
+          - /url: /configuracion
+  - main [ref=f1e13]:
+    - generic [ref=f1e14]:
+      - generic [ref=f1e15]:
+        - heading "Mi CV" [level=1] [ref=f1e16]
+        - generic [ref=f1e17]:
+          - button "Subir PDF" [ref=f1e18]
+          - generic [ref=f1e19]:
+            - button "ES" [ref=f1e20]
+            - button "EN" [ref=f1e21]
+          - button "Exportar PDF" [disabled] [ref=f1e22]
+      - generic [ref=f1e23] [cursor=pointer]:
+        - paragraph [ref=f1e24]: Subí tu CV en PDF
+        - paragraph [ref=f1e25]: Arrastrá el archivo acá o hacé clic. Se extraen los datos y quedan listos para editar.

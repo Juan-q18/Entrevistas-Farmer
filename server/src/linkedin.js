@@ -14,25 +14,25 @@ export const WORK_TYPE_VALUES = {
 };
 
 export const COUNTRIES = [
-  { code: 'AR', name: 'Argentina', geoId: '100519571', names: ['argentina'] },
+  { code: 'AR', name: 'Argentina', geoId: '100446943', names: ['argentina'] },
   { code: 'ES', name: 'España', geoId: '105646813', names: ['españa', 'spain'] },
-  { code: 'MX', name: 'México', geoId: '103957667', names: ['méxico', 'mexico'] },
+  { code: 'MX', name: 'México', geoId: '103323778', names: ['méxico', 'mexico'] },
   { code: 'BR', name: 'Brasil', geoId: '106057199', names: ['brasil', 'brazil'] },
-  { code: 'CL', name: 'Chile', geoId: '100365931', names: ['chile'] },
-  { code: 'UY', name: 'Uruguay', geoId: '104077954', names: ['uruguay'] },
-  { code: 'CO', name: 'Colombia', geoId: '100604021', names: ['colombia'] },
-  { code: 'PE', name: 'Perú', geoId: '101404507', names: ['perú', 'peru'] },
+  { code: 'CL', name: 'Chile', geoId: '104621616', names: ['chile'] },
+  { code: 'UY', name: 'Uruguay', geoId: '100867946', names: ['uruguay'] },
+  { code: 'CO', name: 'Colombia', geoId: '100876405', names: ['colombia'] },
+  { code: 'PE', name: 'Perú', geoId: '102927786', names: ['perú', 'peru'] },
   { code: 'US', name: 'Estados Unidos', geoId: '103644278', names: ['estados unidos', 'united states', 'ee. uu.', 'eeuu', 'usa'] },
   { code: 'CA', name: 'Canadá', geoId: '101174742', names: ['canadá', 'canada'] },
   { code: 'GB', name: 'Reino Unido', geoId: '101165590', names: ['reino unido', 'united kingdom', 'uk', 'england'] },
   { code: 'DE', name: 'Alemania', geoId: '101282230', names: ['alemania', 'germany'] },
   { code: 'FR', name: 'Francia', geoId: '105015875', names: ['francia', 'france'] },
-  { code: 'PT', name: 'Portugal', geoId: '103890388', names: ['portugal'] },
-  { code: 'NL', name: 'Países Bajos', geoId: '102890883', names: ['países bajos', 'netherlands', 'holanda'] },
-  { code: 'IE', name: 'Irlanda', geoId: '105607864', names: ['irlanda', 'ireland'] },
+  { code: 'PT', name: 'Portugal', geoId: '100364837', names: ['portugal'] },
+  { code: 'NL', name: 'Países Bajos', geoId: '102890719', names: ['países bajos', 'netherlands', 'holanda'] },
+  { code: 'IE', name: 'Irlanda', geoId: '104738515', names: ['irlanda', 'ireland'] },
   { code: 'IT', name: 'Italia', geoId: '103350119', names: ['italia', 'italy'] },
   { code: 'IN', name: 'India', geoId: '102713980', names: ['india'] },
-  { code: 'SG', name: 'Singapur', geoId: '106693599', names: ['singapur', 'singapore'] }
+  { code: 'SG', name: 'Singapur', geoId: '102454443', names: ['singapur', 'singapore'] }
 ];
 
 export const CONTINENTS = [
