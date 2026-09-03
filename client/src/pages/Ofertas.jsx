@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import api from '../api.js';
+import api, { parseJson } from '../api.js';
 
 const STATUSES = [
   { value: 'nueva', label: 'Nueva', cls: 'border-slate-300 text-slate-600' },
@@ -50,7 +50,7 @@ export default function OfertasPage() {
   const load = useCallback(async () => {
     try {
       const r = await api('/api/jobs');
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error');
       setAllJobs(body);
     } catch (e) {
@@ -109,7 +109,7 @@ export default function OfertasPage() {
     setDescErr((e) => ({ ...e, [job.id]: '' }));
     try {
       const r = await api(`/api/jobs/${job.id}/description`);
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error');
       setDescs((d) => ({ ...d, [job.id]: body.description }));
     } catch (e) {
@@ -134,7 +134,7 @@ export default function OfertasPage() {
     setError('');
     try {
       const r = await api('/api/searches');
-      const searches = await r.json();
+      const searches = await parseJson(r);
       const active = searches.filter((s) => s.active);
       let total = 0;
       for (const s of active) {
@@ -191,7 +191,7 @@ export default function OfertasPage() {
               try {
                 const url = statusFilter === 'todas' ? '/api/jobs' : `/api/jobs?status=${encodeURIComponent(statusFilter)}`;
                 const r = await api(url, { method: 'DELETE' });
-                const body = await r.json();
+                const body = await parseJson(r);
                 if (!r.ok) throw new Error(body.error ?? 'Error');
                 setToast(`✓ ${body.deleted} oferta(s) eliminada(s) de la sección actual`);
                 load();

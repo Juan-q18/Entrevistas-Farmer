@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import api from '../api.js';
+import api, { parseJson } from '../api.js';
 
 const inputCls =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500';
@@ -107,7 +107,7 @@ export default function BusquedasPage() {
   const load = useCallback(async () => {
     try {
       const r = await api('/api/searches');
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error');
       setSearches(body);
     } catch (e) {
@@ -135,7 +135,7 @@ export default function BusquedasPage() {
     suggTimer.current = setTimeout(async () => {
       try {
         const r = await api(`/api/searches/suggestions?q=${encodeURIComponent(q)}`);
-        const body = await r.json();
+        const body = await parseJson(r);
         if (Array.isArray(body)) setSuggestions(body.filter((s) => !keywordChips.includes(s)));
       } catch { /* ignore */ }
     }, 200);
@@ -168,7 +168,7 @@ export default function BusquedasPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...draft, keywords: keywordChips.join(' ') })
       });
-      const body = await r.json();
+      const body = await parseJson(r) ?? {};
       if (!r.ok) throw new Error(body.error ?? 'Error al guardar');
       notify(editingId ? '✓ Búsqueda actualizada' : '✓ Búsqueda creada');
       setDraft(emptyDraft);
@@ -223,7 +223,7 @@ export default function BusquedasPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ searchId: s.id })
       });
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error');
       notify(body.truncated ? `✓ ${body.fetched} ofertas (${body.new} nuevas) para "${s.name}". Se limitó a ${body.truncated} países por ejecución — volvé a traer para el resto.` : `✓ ${body.fetched} ofertas (${body.new} nuevas) para "${s.name}"`);
       load();

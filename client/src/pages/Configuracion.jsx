@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import api from '../api.js';
+import api, { parseJson } from '../api.js';
 
 const inputCls =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500';
@@ -18,7 +18,7 @@ export default function ConfiguracionPage() {
   const load = useCallback(async () => {
     try {
       const r = await api('/api/settings');
-      const body = await r.json();
+      const body = await parseJson(r);
       setSettings(body);
       setProvider(body.provider);
       setModel(body.model);
@@ -55,7 +55,7 @@ export default function ConfiguracionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, model, baseUrl, apiKey })
       });
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error al guardar');
       setApiKey('');
       setSettings(body);
@@ -74,7 +74,7 @@ export default function ConfiguracionPage() {
     setTestResult(null);
     try {
       const r = await api('/api/ai/test', { method: 'POST' });
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error');
       setTestResult({ ok: true, msg: '✓ Conexión exitosa: el proveedor respondió OK' });
     } catch (e) {

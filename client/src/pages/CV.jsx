@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import api from '../api.js';
+import api, { parseJson } from '../api.js';
 
 const emptyCv = {
   nombre: '', titulo: '', email: '', telefono: '', ubicacion: '', linkedin: '', web: '',
@@ -246,7 +246,7 @@ function AtsPanel({ template, dirty, disabled }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template })
       });
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error al verificar');
       setReport(body);
     } catch (e) {
@@ -324,7 +324,7 @@ export default function CVPage() {
   const load = useCallback(async () => {
     try {
       const r = await api('/api/cv');
-      const body = await r.json();
+      const body = await parseJson(r);
       setCv({ ...emptyCv, ...body.data });
       setTemplate(body.template ?? 'clasica');
       setLoaded(true);
@@ -374,7 +374,7 @@ export default function CVPage() {
       const fd = new FormData();
       fd.append('file', file);
       const r = await api('/api/cv/upload', { method: 'POST', body: fd });
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error al subir el PDF');
       setCv({ ...emptyCv, ...body.data });
       setDirty(false);
@@ -392,7 +392,7 @@ export default function CVPage() {
     try {
       const r = await api(`/api/cv/export?template=${template}&lang=${exportLang}`);
       if (!r.ok) {
-        const body = await r.json().catch(() => ({}));
+        const body = await parseJson(r).catch(() => ({}));
         throw new Error(body.error ?? 'Error al exportar');
       }
       const blob = await r.blob();
@@ -451,7 +451,7 @@ export default function CVPage() {
         body: JSON.stringify({ field: task.fieldKey, value: task.value }),
         signal: controller.signal
       });
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error al mejorar');
       setWizard((w) => ({ ...w, busy: false, improved: body.improved }));
     } catch (e) {
@@ -519,7 +519,7 @@ export default function CVPage() {
     setError('');
     try {
       const r = await api('/api/cv/skills', { method: 'POST' });
-      const body = await r.json();
+      const body = await parseJson(r);
       if (!r.ok) throw new Error(body.error ?? 'Error al extraer skills');
       const existing = new Set(cv.skills.filter(Boolean).map((s) => s.toLowerCase()));
       const newSkills = body.skills.filter((s) => !existing.has(s.toLowerCase()));
