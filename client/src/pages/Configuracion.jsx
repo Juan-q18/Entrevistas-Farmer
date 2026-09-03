@@ -23,7 +23,8 @@ export default function ConfiguracionPage() {
       setProvider(body.provider);
       setModel(body.model);
       setBaseUrl(body.baseUrl || body.providers[body.provider]?.baseUrl || '');
-    } catch {
+    } catch (e) {
+      if (e.auth) return;
       setError('No se pudo conectar con la API');
     }
   }, []);

@@ -110,7 +110,8 @@ export default function BusquedasPage() {
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? 'Error');
       setSearches(body);
-    } catch {
+    } catch (e) {
+      if (e.auth) return;
       setError('No se pudo conectar con la API');
     }
   }, []);

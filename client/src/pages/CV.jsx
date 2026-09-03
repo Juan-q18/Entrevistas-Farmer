@@ -328,7 +328,8 @@ export default function CVPage() {
       setCv({ ...emptyCv, ...body.data });
       setTemplate(body.template ?? 'clasica');
       setLoaded(true);
-    } catch {
+    } catch (e) {
+      if (e.auth) return;
       setError('No se pudo conectar con la API');
     }
   }, []);
