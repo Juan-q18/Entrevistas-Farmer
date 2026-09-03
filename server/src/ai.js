@@ -1,4 +1,4 @@
-import db from './db.js';
+import { get, run } from './db.js';
 
 export const AI_PROVIDERS = {
   deepseek: { label: 'DeepSeek', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
@@ -8,9 +8,23 @@ export const AI_PROVIDERS = {
   ollama: { label: 'Ollama (local)', baseUrl: 'http://localhost:11434/v1', defaultModel: 'llama3.1', noKey: true }
 };
 
-export function getSettings() {
-  const rows = db.prepare('SELECT key, value FROM settings').all();
-  const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+const DEFAULT_SETTINGS = {
+  ai_provider: 'deepseek',
+  ai_model: 'deepseek-chat',
+  ai_api_key: '',
+  ai_base_url: ''
+};
+
+async function ensureSettings(userId) {
+  for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+    await run('INSERT OR IGNORE INTO settings (user_id, key, value) VALUES (?, ?, ?)', [userId, key, value]);
+  }
+}
+
+export async function getSettings(userId) {
+  await ensureSettings(userId);
+  const rows = await get('SELECT key, value FROM settings WHERE user_id = ?', [userId]);
+  const s = rows ?? {};
   const provider = s.ai_provider ?? 'deepseek';
   return {
     provider,
@@ -20,8 +34,8 @@ export function getSettings() {
   };
 }
 
-export function getMaskedSettings() {
-  const s = getSettings();
+export async function getMaskedSettings(userId) {
+  const s = await getSettings(userId);
   return {
     provider: s.provider,
     model: s.model,
@@ -34,14 +48,15 @@ export function getMaskedSettings() {
   };
 }
 
-export function saveSettings({ provider, model, apiKey, baseUrl }) {
-  if (provider) db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(String(provider), 'ai_provider');
-  if (model) db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(String(model), 'ai_model');
+export async function saveSettings(userId, { provider, model, apiKey, baseUrl }) {
+  await ensureSettings(userId);
+  if (provider) await run('UPDATE settings SET value = ? WHERE user_id = ? AND key = ?', [String(provider), userId, 'ai_provider']);
+  if (model) await run('UPDATE settings SET value = ? WHERE user_id = ? AND key = ?', [String(model), userId, 'ai_model']);
   if (typeof apiKey === 'string' && apiKey.trim()) {
-    db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(apiKey.trim(), 'ai_api_key');
+    await run('UPDATE settings SET value = ? WHERE user_id = ? AND key = ?', [apiKey.trim(), userId, 'ai_api_key']);
   }
   if (typeof baseUrl === 'string') {
-    db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(baseUrl.trim(), 'ai_base_url');
+    await run('UPDATE settings SET value = ? WHERE user_id = ? AND key = ?', [baseUrl.trim(), userId, 'ai_base_url']);
   }
 }
 
@@ -83,11 +98,11 @@ async function chatComplete(settings, system, user, { maxTokens = 700, temperatu
   }
 }
 
-export async function improveText(field, value) {
+export async function improveText(userId, field, value) {
   if (!value || String(value).trim().length < 10) {
     throw new Error('El texto es demasiado corto para mejorar');
   }
-  const settings = getSettings();
+  const settings = await getSettings(userId);
   if (!settings.apiKey && !AI_PROVIDERS[settings.provider]?.noKey) {
     throw new Error('No hay API key configurada: andá a Configuración y guardala');
   }
@@ -105,8 +120,8 @@ REGLAS ESTRICTAS:
   return chatComplete(settings, system, user);
 }
 
-export async function testConnection() {
-  const settings = getSettings();
+export async function testConnection(userId) {
+  const settings = await getSettings(userId);
   if (!settings.apiKey && !AI_PROVIDERS[settings.provider]?.noKey) {
     throw new Error('No hay API key configurada');
   }
@@ -190,8 +205,8 @@ function needsTranslation(text, targetLang) {
   return detectLang(text) !== targetLang;
 }
 
-export async function translateCv(cv, targetLang = 'en') {
-  const settings = getSettings();
+export async function translateCv(cv, targetLang = 'en', userId) {
+  const settings = await getSettings(userId);
   if (!settings.apiKey && !AI_PROVIDERS[settings.provider]?.noKey) {
     throw new Error('No hay API key configurada: andá a Configuración y guardala');
   }
@@ -349,8 +364,8 @@ Rules:
   return result;
 }
 
-export async function extractSkills(cv) {
-  const settings = getSettings();
+export async function extractSkills(cv, userId) {
+  const settings = await getSettings(userId);
   if (!settings.apiKey && !AI_PROVIDERS[settings.provider]?.noKey) {
     throw new Error('No hay API key configurada: andá a Configuración y guardala');
   }

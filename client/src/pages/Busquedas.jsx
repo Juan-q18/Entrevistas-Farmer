@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import api from '../api.js';
 
 const inputCls =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500';
@@ -105,7 +106,7 @@ export default function BusquedasPage() {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch('/api/searches');
+      const r = await api('/api/searches');
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? 'Error');
       setSearches(body);
@@ -132,7 +133,7 @@ export default function BusquedasPage() {
     }
     suggTimer.current = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/searches/suggestions?q=${encodeURIComponent(q)}`);
+        const r = await api(`/api/searches/suggestions?q=${encodeURIComponent(q)}`);
         const body = await r.json();
         if (Array.isArray(body)) setSuggestions(body.filter((s) => !keywordChips.includes(s)));
       } catch { /* ignore */ }
@@ -161,7 +162,7 @@ export default function BusquedasPage() {
     setBusy('form');
     try {
       const url = editingId ? `/api/searches/${editingId}` : '/api/searches';
-      const r = await fetch(url, {
+      const r = await api(url, {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...draft, keywords: keywordChips.join(' ') })
@@ -208,7 +209,7 @@ export default function BusquedasPage() {
 
   const removeSearch = async (s) => {
     if (!confirm(`¿Eliminar la búsqueda "${s.name}"?`)) return;
-    await fetch(`/api/searches/${s.id}`, { method: 'DELETE' });
+    await api(`/api/searches/${s.id}`, { method: 'DELETE' });
     load();
   };
 
@@ -216,7 +217,7 @@ export default function BusquedasPage() {
     setBusy(s.id);
     setError('');
     try {
-      const r = await fetch('/api/jobs/fetch', {
+      const r = await api('/api/jobs/fetch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ searchId: s.id })
@@ -233,7 +234,7 @@ export default function BusquedasPage() {
   };
 
   const toggleActive = async (s) => {
-    await fetch(`/api/searches/${s.id}`, {
+    await api(`/api/searches/${s.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...s, active: !s.active })

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import api from '../api.js';
 
 const emptyCv = {
   nombre: '', titulo: '', email: '', telefono: '', ubicacion: '', linkedin: '', web: '',
@@ -240,7 +241,7 @@ function AtsPanel({ template, dirty, disabled }) {
     setBusy(true);
     setError('');
     try {
-      const r = await fetch('/api/cv/check', {
+      const r = await api('/api/cv/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template })
@@ -322,7 +323,7 @@ export default function CVPage() {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch('/api/cv');
+      const r = await api('/api/cv');
       const body = await r.json();
       setCv({ ...emptyCv, ...body.data });
       setTemplate(body.template ?? 'clasica');
@@ -345,7 +346,7 @@ export default function CVPage() {
   const save = async () => {
     setBusy(true);
     try {
-      const r = await fetch('/api/cv', {
+      const r = await api('/api/cv', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: cv, template })
@@ -371,7 +372,7 @@ export default function CVPage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const r = await fetch('/api/cv/upload', { method: 'POST', body: fd });
+      const r = await api('/api/cv/upload', { method: 'POST', body: fd });
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? 'Error al subir el PDF');
       setCv({ ...emptyCv, ...body.data });
@@ -388,7 +389,7 @@ export default function CVPage() {
     setBusy(true);
     setError('');
     try {
-      const r = await fetch(`/api/cv/export?template=${template}&lang=${exportLang}`);
+      const r = await api(`/api/cv/export?template=${template}&lang=${exportLang}`);
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         throw new Error(body.error ?? 'Error al exportar');
@@ -443,7 +444,7 @@ export default function CVPage() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 100000);
     try {
-      const r = await fetch('/api/cv/improve', {
+      const r = await api('/api/cv/improve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ field: task.fieldKey, value: task.value }),
@@ -516,7 +517,7 @@ export default function CVPage() {
     setExtractingSkills(true);
     setError('');
     try {
-      const r = await fetch('/api/cv/skills', { method: 'POST' });
+      const r = await api('/api/cv/skills', { method: 'POST' });
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? 'Error al extraer skills');
       const existing = new Set(cv.skills.filter(Boolean).map((s) => s.toLowerCase()));

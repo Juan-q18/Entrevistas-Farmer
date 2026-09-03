@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import api from '../api.js';
 
 const STATUSES = [
   { value: 'nueva', label: 'Nueva', cls: 'border-slate-300 text-slate-600' },
@@ -48,7 +49,7 @@ export default function OfertasPage() {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch('/api/jobs');
+      const r = await api('/api/jobs');
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? 'Error');
       setAllJobs(body);
@@ -81,7 +82,7 @@ export default function OfertasPage() {
   };
 
   const setStatus = async (job, status) => {
-    await fetch(`/api/jobs/${job.id}`, {
+    await api(`/api/jobs/${job.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })
@@ -91,7 +92,7 @@ export default function OfertasPage() {
   };
 
   const saveNotes = async (job) => {
-    await fetch(`/api/jobs/${job.id}`, {
+    await api(`/api/jobs/${job.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes })
@@ -106,7 +107,7 @@ export default function OfertasPage() {
     setDescId(job.id);
     setDescErr((e) => ({ ...e, [job.id]: '' }));
     try {
-      const r = await fetch(`/api/jobs/${job.id}/description`);
+      const r = await api(`/api/jobs/${job.id}/description`);
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? 'Error');
       setDescs((d) => ({ ...d, [job.id]: body.description }));
@@ -131,12 +132,12 @@ export default function OfertasPage() {
     setBusy(true);
     setError('');
     try {
-      const r = await fetch('/api/searches');
+      const r = await api('/api/searches');
       const searches = await r.json();
       const active = searches.filter((s) => s.active);
       let total = 0;
       for (const s of active) {
-        const f = await fetch('/api/jobs/fetch', {
+        const f = await api('/api/jobs/fetch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ searchId: s.id })
@@ -184,7 +185,7 @@ export default function OfertasPage() {
               if (!confirm('Esto eliminará TODAS las búsquedas y ofertas. Esta acción no se puede deshacer.\n\n¿Continuar?')) return;
               setBusy(true);
               try {
-      await fetch('/api/searches', { method: 'DELETE' });
+      await api('/api/searches', { method: 'DELETE' });
       setAllJobs([]);
       setToast('Todas las búsquedas y ofertas eliminadas');
               } catch (e) {

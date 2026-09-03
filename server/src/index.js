@@ -1,12 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import db, { parseJson } from './db.js';
+import { get, all, run, initSchema, parseJson } from './db.js';
 import { parseCvColumns } from './cvParser.js';
 import { extractPdfColumns } from './pdfText.js';
 import { renderCvPdf, TEMPLATES } from './cvPdf.js';
 import { getMaskedSettings, saveSettings, improveText, testConnection, translateCv, extractSkills, detectLang } from './ai.js';
 import { fetchLinkedInJobs, fetchJobDescription, expandCountries, workTypeForCountry, LinkedInBlockedError } from './linkedin.js';
+import { registerUser, loginUser, requireAuth } from './auth.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -17,24 +18,57 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// ─── Auth ────────────────────────────────────────────────────────────────
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, name: 'trabajo-farmer', version: '0.1.0' });
 });
 
-app.get('/api/cv', (_req, res) => {
-  const row = db.prepare('SELECT data, template, updated_at FROM cv WHERE id = 1').get();
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, name } = req.body ?? {};
+    const user = await registerUser({ email, password, name });
+    res.status(201).json({ user });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body ?? {};
+    const result = await loginUser({ email, password });
+    res.json(result);
+  } catch (err) {
+    res.status(401).json({ error: err.message });
+  }
+});
+
+// ─── CV ──────────────────────────────────────────────────────────────────
+
+async function getCvRow(userId) {
+  let row = await get('SELECT data, template, updated_at FROM cv WHERE user_id = ?', [userId]);
+  if (!row) {
+    await run("INSERT OR IGNORE INTO cv (user_id, data) VALUES (?, '{}')", [userId]);
+    row = await get('SELECT data, template, updated_at FROM cv WHERE user_id = ?', [userId]);
+  }
+  return row;
+}
+
+app.get('/api/cv', requireAuth, async (req, res) => {
+  const row = await getCvRow(req.userId);
   res.json({ data: parseJson(row.data, {}), template: row.template, updatedAt: row.updated_at });
 });
 
-app.put('/api/cv', (req, res) => {
+app.put('/api/cv', requireAuth, async (req, res) => {
   const data = JSON.stringify(req.body.data ?? {});
   const template = String(req.body.template ?? 'clasica');
-  db.prepare('UPDATE cv SET data = ?, template = ?, updated_at = datetime(\'now\') WHERE id = 1').run(data, template);
-  const row = db.prepare('SELECT data, template, updated_at FROM cv WHERE id = 1').get();
+  await run("UPDATE cv SET data = ?, template = ?, updated_at = datetime('now') WHERE user_id = ?", [data, template, req.userId]);
+  const row = await getCvRow(req.userId);
   res.json({ data: parseJson(row.data, {}), template: row.template, updatedAt: row.updated_at });
 });
 
-app.post('/api/cv/upload', upload.single('file'), async (req, res) => {
+app.post('/api/cv/upload', requireAuth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No se recibió ningún archivo' });
@@ -50,7 +84,7 @@ app.post('/api/cv/upload', upload.single('file'), async (req, res) => {
     if (!data.nombre && !data.resumen && data.experiencia.length === 0) {
       return res.status(422).json({ error: 'No se pudo extraer contenido del PDF (¿está escaneado?). Probá con uno con texto seleccionable.' });
     }
-    db.prepare('UPDATE cv SET data = ?, raw_text = ?, updated_at = datetime(\'now\') WHERE id = 1').run(JSON.stringify(data), rawText);
+    await run("UPDATE cv SET data = ?, raw_text = ?, updated_at = datetime('now') WHERE user_id = ?", [JSON.stringify(data), rawText, req.userId]);
     res.json({ data, extractedChars: rawText.length, pageCount: pages.length });
   } catch (err) {
     console.error('Error al parsear PDF:', err);
@@ -58,13 +92,13 @@ app.post('/api/cv/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-app.get('/api/cv/export', async (req, res) => {
+app.get('/api/cv/export', requireAuth, async (req, res) => {
   try {
-    const row = db.prepare('SELECT data, template FROM cv WHERE id = 1').get();
+    const row = await getCvRow(req.userId);
     let cv = parseJson(row.data, {});
     const template = TEMPLATES[req.query.template] ? req.query.template : row.template;
     const lang = req.query.lang === 'en' ? 'en' : 'es';
-    cv = await translateCv(cv, lang);
+    cv = await translateCv(cv, lang, req.userId);
     const { buffer } = await renderCvPdf(cv, template, lang);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="cv${lang === 'en' ? '_EN' : ''}.pdf"`);
@@ -75,9 +109,9 @@ app.get('/api/cv/export', async (req, res) => {
   }
 });
 
-app.post('/api/cv/check', async (req, res) => {
+app.post('/api/cv/check', requireAuth, async (req, res) => {
   try {
-    const row = db.prepare('SELECT data, template FROM cv WHERE id = 1').get();
+    const row = await getCvRow(req.userId);
     const cv = parseJson(row.data, {});
     const template = TEMPLATES[req.body?.template] ? req.body.template : row.template;
     const { buffer, pageCount, fits } = await renderCvPdf(cv, template);
@@ -113,38 +147,42 @@ app.post('/api/cv/check', async (req, res) => {
   }
 });
 
-app.get('/api/settings', (_req, res) => res.json(getMaskedSettings()));
-app.put('/api/settings', (req, res) => {
-  saveSettings(req.body ?? {});
-  res.json(getMaskedSettings());
+// ─── Settings (IA por usuario) ───────────────────────────────────────────
+
+app.get('/api/settings', requireAuth, async (req, res) => res.json(await getMaskedSettings(req.userId)));
+app.put('/api/settings', requireAuth, async (req, res) => {
+  await saveSettings(req.userId, req.body ?? {});
+  res.json(await getMaskedSettings(req.userId));
 });
-app.post('/api/ai/test', async (_req, res) => {
+app.post('/api/ai/test', requireAuth, async (req, res) => {
   try {
-    await testConnection();
+    await testConnection(req.userId);
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
-app.post('/api/cv/improve', async (req, res) => {
+app.post('/api/cv/improve', requireAuth, async (req, res) => {
   try {
     const { field = 'resumen', value = '' } = req.body ?? {};
-    const improved = await improveText(field, String(value));
+    const improved = await improveText(req.userId, field, String(value));
     res.json({ improved });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
-app.post('/api/cv/skills', async (_req, res) => {
+app.post('/api/cv/skills', requireAuth, async (req, res) => {
   try {
-    const row = db.prepare('SELECT data FROM cv WHERE id = 1').get();
+    const row = await get('SELECT data FROM cv WHERE user_id = ?', [req.userId]);
     const cv = parseJson(row?.data ?? '{}', {});
-    const skills = await extractSkills(cv);
+    const skills = await extractSkills(cv, req.userId);
     res.json({ skills });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
+
+// ─── Searches ────────────────────────────────────────────────────────────
 
 function serializeSearch(row) {
   return {
@@ -158,8 +196,8 @@ function serializeSearch(row) {
   };
 }
 
-app.get('/api/searches', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM searches ORDER BY created_at DESC').all();
+app.get('/api/searches', requireAuth, async (req, res) => {
+  const rows = await all('SELECT * FROM searches WHERE user_id = ? ORDER BY created_at DESC', [req.userId]);
   res.json(rows.map(serializeSearch));
 });
 
@@ -171,64 +209,70 @@ const CURATED_POSITIONS = [
   'Automation Tester', 'Test Engineer', 'Performance Tester'
 ];
 
-app.get('/api/searches/suggestions', (req, res) => {
+app.get('/api/searches/suggestions', async (req, res) => {
   const q = String(req.query.q ?? '').trim().toLowerCase();
-  const fromDb = db.prepare('SELECT DISTINCT title FROM jobs WHERE title != ? ORDER BY title').all('')
-    .map((r) => r.title).filter(Boolean);
-  const all = [...new Set([...CURATED_POSITIONS, ...fromDb])];
-  const filtered = q ? all.filter((t) => t.toLowerCase().includes(q)) : all;
+  const fromDbRows = await all("SELECT DISTINCT title FROM jobs WHERE title != '' ORDER BY title");
+  const fromDb = fromDbRows.map((r) => r.title).filter(Boolean);
+  const allTitles = [...new Set([...CURATED_POSITIONS, ...fromDb])];
+  const filtered = q ? allTitles.filter((t) => t.toLowerCase().includes(q)) : allTitles;
   res.json(filtered.slice(0, 10));
 });
 
-app.post('/api/searches', (req, res) => {
+app.post('/api/searches', requireAuth, async (req, res) => {
   const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', remoteOnly = false, active = true } = req.body ?? {};
   if (!name || !String(name).trim()) {
     return res.status(400).json({ error: 'name es obligatorio' });
   }
-  const info = db.prepare(`
-    INSERT INTO searches (name, keywords, location, geo_id, experience_levels, job_types, work_types, countries, time_posted, company_id, remote_only, active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    String(name).trim(), keywords, location, geoId,
+  const info = await run(`
+    INSERT INTO searches (user_id, name, keywords, location, geo_id, experience_levels, job_types, work_types, countries, time_posted, company_id, remote_only, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    req.userId, String(name).trim(), keywords, location, geoId,
     JSON.stringify(experienceLevels), JSON.stringify(jobTypes), JSON.stringify(workTypes), JSON.stringify(countries),
     timePosted, companyId, remoteOnly ? 1 : 0, active ? 1 : 0
-  );
-  const row = db.prepare('SELECT * FROM searches WHERE id = ?').get(info.lastInsertRowid);
+  ]);
+  const row = await get('SELECT * FROM searches WHERE id = ?', [Number(info.lastInsertRowid)]);
   res.status(201).json(serializeSearch(row));
 });
 
-app.put('/api/searches/:id', (req, res) => {
+app.put('/api/searches/:id', requireAuth, async (req, res) => {
   const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', remoteOnly = false, active = true } = req.body ?? {};
-  const info = db.prepare(`
+  const info = await run(`
     UPDATE searches SET
       name = ?, keywords = ?, location = ?, geo_id = ?, experience_levels = ?, job_types = ?, work_types = ?, countries = ?, time_posted = ?, company_id = ?, remote_only = ?, active = ?
-    WHERE id = ?
-  `).run(
+    WHERE id = ? AND user_id = ?
+  `, [
     String(name).trim(), keywords, location, geoId,
     JSON.stringify(experienceLevels), JSON.stringify(jobTypes), JSON.stringify(workTypes), JSON.stringify(countries),
-    timePosted, companyId, remoteOnly ? 1 : 0, active ? 1 : 0, Number(req.params.id)
-  );
+    timePosted, companyId, remoteOnly ? 1 : 0, active ? 1 : 0, Number(req.params.id), req.userId
+  ]);
   if (info.changes === 0) return res.status(404).json({ error: 'Búsqueda no encontrada' });
-  const row = db.prepare('SELECT * FROM searches WHERE id = ?').get(req.params.id);
+  const row = await get('SELECT * FROM searches WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
   res.json(serializeSearch(row));
 });
 
-app.delete('/api/searches', (req, res) => {
-  db.prepare('DELETE FROM jobs').run();
-  db.prepare('DELETE FROM searches').run();
+app.delete('/api/searches', requireAuth, async (req, res) => {
+  const rows = await all('SELECT id FROM searches WHERE user_id = ?', [req.userId]);
+  const ids = rows.map((r) => Number(r.id));
+  for (const id of ids) {
+    await run('DELETE FROM job_searches WHERE search_id = ?', [id]);
+  }
+  await run('DELETE FROM searches WHERE user_id = ?', [req.userId]);
   res.status(204).end();
 });
 
-app.delete('/api/searches/:id', (req, res) => {
-  const info = db.prepare('DELETE FROM searches WHERE id = ?').run(req.params.id);
+app.delete('/api/searches/:id', requireAuth, async (req, res) => {
+  const info = await run('DELETE FROM searches WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
   if (info.changes === 0) return res.status(404).json({ error: 'Búsqueda no encontrada' });
   res.status(204).end();
 });
 
-app.get('/api/jobs', (req, res) => {
+// ─── Jobs ────────────────────────────────────────────────────────────────
+
+app.get('/api/jobs', requireAuth, async (req, res) => {
   const { status, searchId, q } = req.query;
-  const conditions = [];
-  const params = [];
+  const conditions = ['s.user_id = ?'];
+  const params = [req.userId];
   if (status) {
     conditions.push('j.status = ?');
     params.push(status);
@@ -238,50 +282,62 @@ app.get('/api/jobs', (req, res) => {
     params.push(`%${q}%`, `%${q}%`, `%${q}%`);
   }
   let sql = `
-    SELECT j.*, COALESCE(GROUP_CONCAT(js.search_id), '') AS search_ids
+    SELECT DISTINCT j.*,
+      (SELECT COALESCE(GROUP_CONCAT(js.search_id), '') FROM job_searches js WHERE js.job_id = j.id) AS search_ids
     FROM jobs j
-    LEFT JOIN job_searches js ON js.job_id = j.id
+    JOIN job_searches js2 ON js2.job_id = j.id
+    JOIN searches s ON s.id = js2.search_id
   `;
   if (searchId) {
-    sql += ` JOIN job_searches jsf ON jsf.job_id = j.id AND jsf.search_id = ? `;
+    conditions.push('js2.search_id = ?');
     params.push(searchId);
   }
-  if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')} `;
+  sql += ` WHERE ${conditions.join(' AND ')} `;
   sql += ` GROUP BY j.id ORDER BY j.created_at DESC `;
-  const rows = db.prepare(sql).all(...params);
+  const rows = await all(sql, params);
   res.json(rows.map((row) => ({
     ...row,
     searchIds: row.search_ids ? String(row.search_ids).split(',').map(Number) : []
   })));
 });
 
-app.patch('/api/jobs/:id', (req, res) => {
+app.patch('/api/jobs/:id', requireAuth, async (req, res) => {
   const { status, notes } = req.body ?? {};
-  const current = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id);
-  if (!current) return res.status(404).json({ error: 'Oferta no encontrada' });
-  db.prepare('UPDATE jobs SET status = ?, notes = ? WHERE id = ?').run(
-    status ?? current.status,
-    notes ?? current.notes,
-    req.params.id
-  );
-  res.json(db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id));
+  const owned = await get(`
+    SELECT j.id FROM jobs j
+    JOIN job_searches js ON js.job_id = j.id
+    JOIN searches s ON s.id = js.search_id
+    WHERE j.id = ? AND s.user_id = ?
+    LIMIT 1
+  `, [req.params.id, req.userId]);
+  if (!owned) return res.status(404).json({ error: 'Oferta no encontrada' });
+  const current = await get('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
+  await run('UPDATE jobs SET status = ?, notes = ? WHERE id = ?', [status ?? current.status, notes ?? current.notes, req.params.id]);
+  res.json(await get('SELECT * FROM jobs WHERE id = ?', [req.params.id]));
 });
 
-app.get('/api/jobs/:id/description', async (req, res) => {
-  const row = db.prepare('SELECT id, title, description, url FROM jobs WHERE id = ?').get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'Oferta no encontrada' });
+app.get('/api/jobs/:id/description', requireAuth, async (req, res) => {
+  const owned = await get(`
+    SELECT j.id FROM jobs j
+    JOIN job_searches js ON js.job_id = j.id
+    JOIN searches s ON s.id = js.search_id
+    WHERE j.id = ? AND s.user_id = ?
+    LIMIT 1
+  `, [req.params.id, req.userId]);
+  if (!owned) return res.status(404).json({ error: 'Oferta no encontrada' });
+  const row = await get('SELECT id, title, description, url FROM jobs WHERE id = ?', [req.params.id]);
   if (row.description) return res.json({ description: row.description, cached: true });
   try {
     const description = await fetchJobDescription(row.url.split('/').filter(Boolean).pop() || String(req.params.id));
     const lang = detectLang(`${row.title} ${description}`);
-    db.prepare('UPDATE jobs SET description = ?, language = ? WHERE id = ?').run(description, lang === 'unknown' ? '' : lang, row.id);
+    await run('UPDATE jobs SET description = ?, language = ? WHERE id = ?', [description, lang === 'unknown' ? '' : lang, row.id]);
     res.json({ description, cached: false });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
 });
 
-app.post('/api/jobs/fetch', async (req, res) => {
+app.post('/api/jobs/fetch', requireAuth, async (req, res) => {
   try {
     if (Date.now() - lastLinkedInBlock < BLOCK_COOLDOWN_MS) {
       const wait = Math.ceil((BLOCK_COOLDOWN_MS - (Date.now() - lastLinkedInBlock)) / 1000 / 60);
@@ -291,7 +347,7 @@ app.post('/api/jobs/fetch', async (req, res) => {
     let searchId = null;
     if (req.body?.searchId) {
       searchId = Number(req.body.searchId);
-      const row = db.prepare('SELECT * FROM searches WHERE id = ?').get(searchId);
+      const row = await get('SELECT * FROM searches WHERE id = ? AND user_id = ?', [searchId, req.userId]);
       if (!row) return res.status(404).json({ error: 'Búsqueda no encontrada' });
       search = serializeSearch(row);
     }
@@ -299,24 +355,16 @@ app.post('/api/jobs/fetch', async (req, res) => {
       return res.status(400).json({ error: 'La búsqueda necesita keywords, ubicación o empresa' });
     }
 
-    // expandir países/continentes seleccionados → lista de { code, geoId, name }
     const MAX_COUNTRIES_PER_FETCH = 5;
     const forceRemote = !!search.remoteOnly;
     let truncated = false;
-    // variantes de búsqueda: una por país (cada una con su geoId y work type)
     const variants = [];
-    // si se pide solo remoto, buscar GLOBAL sin geoId de país: así LinkedIn
-    // devuelve jobs "Latin America (Remote)" / "Remote (Work from Anywhere)",
-    // que son los que aceptan trabajar desde cualquier país (verificado en vivo
-    // con la UI: keywords + f_WT=2 sin location). Usar geoId de un país forzaba
-    // jobs "Spain (Remote)" que NO aceptan gente desde Argentina.
     if (forceRemote) {
       const baseKeywords = search.keywords ? `${search.keywords} remote` : 'remote';
-      // geoId 92000000 = "Remote" (jobs remotos globales, sin país fijo)
       variants.push({ ...search, keywords: baseKeywords, workTypes: ['2'], location: '', geoId: '92000000' });
     } else {
       const countryList = expandCountries(search.countries ?? []);
-      const truncated = countryList.length > MAX_COUNTRIES_PER_FETCH;
+      truncated = countryList.length > MAX_COUNTRIES_PER_FETCH;
       const sliced = truncated ? countryList.slice(0, MAX_COUNTRIES_PER_FETCH) : countryList;
       if (sliced.length) {
         for (const c of sliced) {
@@ -328,13 +376,6 @@ app.post('/api/jobs/fetch', async (req, res) => {
         variants.push({ ...search, workTypes: manual });
       }
     }
-
-    const find = db.prepare('SELECT id FROM jobs WHERE linkedin_id = ?');
-    const insert = db.prepare(
-      'INSERT INTO jobs (linkedin_id, title, company, location, url, description, posted_date, remote, country, language) VALUES (?, ?, ?, ?, ?, \'\', ?, ?, ?, ?)'
-    );
-    const update = db.prepare('UPDATE jobs SET title = ?, company = ?, location = ?, posted_date = ?, remote = ?, country = ?, language = ? WHERE id = ?');
-    const link = db.prepare('INSERT OR IGNORE INTO job_searches (job_id, search_id) VALUES (?, ?)');
 
     let newCount = 0;
     let total = 0;
@@ -357,19 +398,23 @@ app.post('/api/jobs/fetch', async (req, res) => {
         seen.add(j.linkedinId);
         if (forceRemote && j.onsite === 1) continue;
         const lang = detectLang(j.title);
-        let row = find.get(j.linkedinId);
+        let row = await get('SELECT id FROM jobs WHERE linkedin_id = ?', [j.linkedinId]);
         if (!row) {
-          insert.run(j.linkedinId, j.title, j.company, j.location, j.url, j.postedDate, j.remote ?? 0, j.country ?? '', lang === 'unknown' ? '' : lang);
-          row = find.get(j.linkedinId);
+          const ins = await run(
+            'INSERT INTO jobs (linkedin_id, title, company, location, url, description, posted_date, remote, country, language) VALUES (?, ?, ?, ?, ?, \'\', ?, ?, ?, ?)',
+            [j.linkedinId, j.title, j.company, j.location, j.url, j.postedDate, j.remote ?? 0, j.country ?? '', lang === 'unknown' ? '' : lang]
+          );
+          row = { id: Number(ins.lastInsertRowid) };
           newCount += 1;
         } else {
-          update.run(j.title, j.company, j.location, j.postedDate, j.remote ?? 0, j.country ?? '', lang === 'unknown' ? '' : lang, row.id);
+          await run('UPDATE jobs SET title = ?, company = ?, location = ?, posted_date = ?, remote = ?, country = ?, language = ? WHERE id = ?',
+            [j.title, j.company, j.location, j.postedDate, j.remote ?? 0, j.country ?? '', lang === 'unknown' ? '' : lang, row.id]);
         }
-        if (searchId && row) link.run(row.id, searchId);
+        if (searchId && row) await run('INSERT OR IGNORE INTO job_searches (job_id, search_id) VALUES (?, ?)', [row.id, searchId]);
       }
     }
     if (searchId) {
-      db.prepare("UPDATE searches SET last_run_at = datetime('now') WHERE id = ?").run(searchId);
+      await run("UPDATE searches SET last_run_at = datetime('now') WHERE id = ?", [searchId]);
     }
     res.json({ fetched: total, new: newCount, truncated: truncated ? MAX_COUNTRIES_PER_FETCH : undefined });
   } catch (err) {
@@ -378,7 +423,11 @@ app.post('/api/jobs/fetch', async (req, res) => {
   }
 });
 
+await initSchema();
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`API lista en http://localhost:${PORT}`);
 });
+
+export default app;

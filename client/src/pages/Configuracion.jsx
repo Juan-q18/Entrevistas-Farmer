@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import api from '../api.js';
 
 const inputCls =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500';
@@ -16,7 +17,7 @@ export default function ConfiguracionPage() {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch('/api/settings');
+      const r = await api('/api/settings');
       const body = await r.json();
       setSettings(body);
       setProvider(body.provider);
@@ -48,7 +49,7 @@ export default function ConfiguracionPage() {
     setBusy(true);
     setError('');
     try {
-      const r = await fetch('/api/settings', {
+      const r = await api('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, model, baseUrl, apiKey })
@@ -71,7 +72,7 @@ export default function ConfiguracionPage() {
     setError('');
     setTestResult(null);
     try {
-      const r = await fetch('/api/ai/test', { method: 'POST' });
+      const r = await api('/api/ai/test', { method: 'POST' });
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? 'Error');
       setTestResult({ ok: true, msg: '✓ Conexión exitosa: el proveedor respondió OK' });
