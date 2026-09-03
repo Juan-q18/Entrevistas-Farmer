@@ -182,12 +182,18 @@ export default function OfertasPage() {
           <button
             className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
             onClick={async () => {
-              if (!confirm('Esto eliminará TODAS las búsquedas y ofertas. Esta acción no se puede deshacer.\n\n¿Continuar?')) return;
+              const seccion = statusFilter === 'todas'
+                ? 'TODAS las ofertas'
+                : `las ofertas "${STATUSES.find((s) => s.value === statusFilter)?.label ?? statusFilter}"`;
+              if (!confirm(`Esto eliminará ${seccion} de tu cuenta. Esta acción no se puede deshacer.\n\n¿Continuar?`)) return;
               setBusy(true);
               try {
-      await api('/api/searches', { method: 'DELETE' });
-      setAllJobs([]);
-      setToast('Todas las búsquedas y ofertas eliminadas');
+                const url = statusFilter === 'todas' ? '/api/jobs' : `/api/jobs?status=${encodeURIComponent(statusFilter)}`;
+                const r = await api(url, { method: 'DELETE' });
+                const body = await r.json();
+                if (!r.ok) throw new Error(body.error ?? 'Error');
+                setToast(`✓ ${body.deleted} oferta(s) eliminada(s) de la sección actual`);
+                load();
               } catch (e) {
                 setError(e.message);
               } finally {

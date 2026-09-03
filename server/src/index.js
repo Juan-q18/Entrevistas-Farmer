@@ -301,6 +301,37 @@ app.get('/api/jobs', requireAuth, async (req, res) => {
   })));
 });
 
+app.delete('/api/jobs', requireAuth, async (req, res) => {
+  const { status } = req.query;
+  const conditions = ['s.user_id = ?'];
+  const params = [req.userId];
+  if (status) {
+    conditions.push('j.status = ?');
+    params.push(status);
+  }
+  const rows = await all(`
+    SELECT DISTINCT j.id FROM jobs j
+    JOIN job_searches js ON js.job_id = j.id
+    JOIN searches s ON s.id = js.search_id
+    WHERE ${conditions.join(' AND ')}
+  `, params);
+
+  const userSearchIds = (await all('SELECT id FROM searches WHERE user_id = ?', [req.userId])).map((r) => Number(r.id));
+  let deleted = 0;
+  for (const r of rows) {
+    const jobId = Number(r.id);
+    if (userSearchIds.length) {
+      await run(`DELETE FROM job_searches WHERE job_id = ? AND search_id IN (${userSearchIds.map(() => '?').join(',')})`, [jobId, ...userSearchIds]);
+    }
+    const remaining = await get('SELECT COUNT(*) AS c FROM job_searches WHERE job_id = ?', [jobId]);
+    if (Number(remaining?.c ?? 0) === 0) {
+      await run('DELETE FROM jobs WHERE id = ?', [jobId]);
+      deleted += 1;
+    }
+  }
+  res.json({ deleted });
+});
+
 app.patch('/api/jobs/:id', requireAuth, async (req, res) => {
   const { status, notes } = req.body ?? {};
   const owned = await get(`
