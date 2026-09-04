@@ -30,10 +30,14 @@ function Port-Listening($port) {
   return [bool](Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
 }
 
+function Start-ServerProc {
+  Start-Process -FilePath "cmd" -ArgumentList "/c", "cd /d `"$serverDir`" && node src/index.js > `"$serverDir\..\server.out.log`" 2> `"$serverDir\..\server.err.log`"" -WindowStyle Hidden
+}
+
 function Ensure-Server {
   if (-not (Port-Listening 3001)) {
     Write-Host "[watchdog] server caído -> releyendo :3001" -ForegroundColor Yellow
-    Start-Process -FilePath "node" -ArgumentList "src/index.js" -WorkingDirectory $serverDir -WindowStyle Hidden
+    Start-ServerProc
   }
 }
 
@@ -50,7 +54,7 @@ if (-not $SkipServer) {
   Write-Host "[server] liberando puerto 3001..." -ForegroundColor Yellow
   Free-Port 3001
   Write-Host "[server] iniciando node src/index.js..." -ForegroundColor Yellow
-  Start-Process -FilePath "node" -ArgumentList "src/index.js" -WorkingDirectory $serverDir -WindowStyle Hidden
+  Start-ServerProc
 }
 
 if (-not $SkipClient) {

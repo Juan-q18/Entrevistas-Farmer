@@ -18,6 +18,14 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// wrapper para rutas async: captura errores y los pasa al middleware de error
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+// evita que errores no capturados maten el proceso
+process.on('unhandledRejection', (err) => console.error('unhandledRejection:', err));
+process.on('uncaughtException', (err) => console.error('uncaughtException:', err));
+
 // ─── Auth ────────────────────────────────────────────────────────────────
 
 app.get('/api/health', (_req, res) => {
@@ -55,18 +63,18 @@ async function getCvRow(userId) {
   return row;
 }
 
-app.get('/api/cv', requireAuth, async (req, res) => {
+app.get('/api/cv', requireAuth, asyncHandler(async (req, res) => {
   const row = await getCvRow(req.userId);
   res.json({ data: parseJson(row.data, {}), template: row.template, updatedAt: row.updated_at });
-});
+}));
 
-app.put('/api/cv', requireAuth, async (req, res) => {
+app.put('/api/cv', requireAuth, asyncHandler(async (req, res) => {
   const data = JSON.stringify(req.body.data ?? {});
   const template = String(req.body.template ?? 'clasica');
   await run("UPDATE cv SET data = ?, template = ?, updated_at = datetime('now') WHERE user_id = ?", [data, template, req.userId]);
   const row = await getCvRow(req.userId);
   res.json({ data: parseJson(row.data, {}), template: row.template, updatedAt: row.updated_at });
-});
+}));
 
 app.post('/api/cv/upload', requireAuth, upload.single('file'), async (req, res) => {
   try {
@@ -149,11 +157,11 @@ app.post('/api/cv/check', requireAuth, async (req, res) => {
 
 // ─── Settings (IA por usuario) ───────────────────────────────────────────
 
-app.get('/api/settings', requireAuth, async (req, res) => res.json(await getMaskedSettings(req.userId)));
-app.put('/api/settings', requireAuth, async (req, res) => {
+app.get('/api/settings', requireAuth, asyncHandler(async (req, res) => res.json(await getMaskedSettings(req.userId))));
+app.put('/api/settings', requireAuth, asyncHandler(async (req, res) => {
   await saveSettings(req.userId, req.body ?? {});
   res.json(await getMaskedSettings(req.userId));
-});
+}));
 app.post('/api/ai/test', requireAuth, async (req, res) => {
   try {
     await testConnection(req.userId);
@@ -196,10 +204,10 @@ function serializeSearch(row) {
   };
 }
 
-app.get('/api/searches', requireAuth, async (req, res) => {
+app.get('/api/searches', requireAuth, asyncHandler(async (req, res) => {
   const rows = await all('SELECT * FROM searches WHERE user_id = ? ORDER BY created_at DESC', [req.userId]);
   res.json(rows.map(serializeSearch));
-});
+}));
 
 const CURATED_POSITIONS = [
   'QA Tester', 'QA Automation Engineer', 'QA Manual Tester', 'SDET', 'Software Tester',
@@ -209,16 +217,16 @@ const CURATED_POSITIONS = [
   'Automation Tester', 'Test Engineer', 'Performance Tester'
 ];
 
-app.get('/api/searches/suggestions', async (req, res) => {
+app.get('/api/searches/suggestions', asyncHandler(async (req, res) => {
   const q = String(req.query.q ?? '').trim().toLowerCase();
   const fromDbRows = await all("SELECT DISTINCT title FROM jobs WHERE title != '' ORDER BY title");
   const fromDb = fromDbRows.map((r) => r.title).filter(Boolean);
   const allTitles = [...new Set([...CURATED_POSITIONS, ...fromDb])];
   const filtered = q ? allTitles.filter((t) => t.toLowerCase().includes(q)) : allTitles;
   res.json(filtered.slice(0, 10));
-});
+}));
 
-app.post('/api/searches', requireAuth, async (req, res) => {
+app.post('/api/searches', requireAuth, asyncHandler(async (req, res) => {
   const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', remoteOnly = false, active = true } = req.body ?? {};
   if (!name || !String(name).trim()) {
     return res.status(400).json({ error: 'name es obligatorio' });
@@ -233,9 +241,9 @@ app.post('/api/searches', requireAuth, async (req, res) => {
   ]);
   const row = await get('SELECT * FROM searches WHERE id = ?', [Number(info.lastInsertRowid)]);
   res.status(201).json(serializeSearch(row));
-});
+}));
 
-app.put('/api/searches/:id', requireAuth, async (req, res) => {
+app.put('/api/searches/:id', requireAuth, asyncHandler(async (req, res) => {
   const { name, keywords = '', location = '', geoId = '', experienceLevels = [], jobTypes = [], workTypes = [], countries = [], timePosted = '', companyId = '', remoteOnly = false, active = true } = req.body ?? {};
   const info = await run(`
     UPDATE searches SET
@@ -249,9 +257,9 @@ app.put('/api/searches/:id', requireAuth, async (req, res) => {
   if (info.changes === 0) return res.status(404).json({ error: 'Búsqueda no encontrada' });
   const row = await get('SELECT * FROM searches WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
   res.json(serializeSearch(row));
-});
+}));
 
-app.delete('/api/searches', requireAuth, async (req, res) => {
+app.delete('/api/searches', requireAuth, asyncHandler(async (req, res) => {
   const rows = await all('SELECT id FROM searches WHERE user_id = ?', [req.userId]);
   const ids = rows.map((r) => Number(r.id));
   for (const id of ids) {
@@ -259,17 +267,17 @@ app.delete('/api/searches', requireAuth, async (req, res) => {
   }
   await run('DELETE FROM searches WHERE user_id = ?', [req.userId]);
   res.status(204).end();
-});
+}));
 
-app.delete('/api/searches/:id', requireAuth, async (req, res) => {
+app.delete('/api/searches/:id', requireAuth, asyncHandler(async (req, res) => {
   const info = await run('DELETE FROM searches WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
   if (info.changes === 0) return res.status(404).json({ error: 'Búsqueda no encontrada' });
   res.status(204).end();
-});
+}));
 
 // ─── Jobs ────────────────────────────────────────────────────────────────
 
-app.get('/api/jobs', requireAuth, async (req, res) => {
+app.get('/api/jobs', requireAuth, asyncHandler(async (req, res) => {
   const { status, searchId, q } = req.query;
   const conditions = ['s.user_id = ?'];
   const params = [req.userId];
@@ -299,9 +307,9 @@ app.get('/api/jobs', requireAuth, async (req, res) => {
     ...row,
     searchIds: row.search_ids ? String(row.search_ids).split(',').map(Number) : []
   })));
-});
+}));
 
-app.delete('/api/jobs', requireAuth, async (req, res) => {
+app.delete('/api/jobs', requireAuth, asyncHandler(async (req, res) => {
   const { status } = req.query;
   const conditions = ['s.user_id = ?'];
   const params = [req.userId];
@@ -330,7 +338,7 @@ app.delete('/api/jobs', requireAuth, async (req, res) => {
     }
   }
   res.json({ deleted });
-});
+}));
 
 app.patch('/api/jobs/:id', requireAuth, async (req, res) => {
   const { status, notes } = req.body ?? {};
@@ -452,6 +460,12 @@ app.post('/api/jobs/fetch', requireAuth, async (req, res) => {
     console.error('Error al traer ofertas:', err.message);
     res.status(502).json({ error: err.message });
   }
+});
+
+// middleware de error: responde 500 con JSON en vez de dejar que Node crashee
+app.use((err, _req, res, _next) => {
+  console.error('Error de API:', err);
+  res.status(500).json({ error: err.message || 'Error interno del servidor' });
 });
 
 await initSchema();
