@@ -62,13 +62,23 @@ export async function loginUser({ email, password }) {
   return { token, user: { id: Number(user.id), email: user.email, name: user.name } };
 }
 
-export function requireAuth(req, res, next) {
-  const header = req.headers.authorization ?? '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  const payload = verifyToken(token);
-  if (!payload) {
+export async function requireAuth(req, res, next) {
+  try {
+    const header = req.headers.authorization ?? '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const payload = verifyToken(token);
+    if (!payload) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+    // validar que el usuario siga existiendo (evita FOREIGN KEY constraint
+    // si la DB se reseteó y el token quedó huérfano)
+    const user = await get('SELECT id FROM users WHERE id = ?', [payload.userId]);
+    if (!user) {
+      return res.status(401).json({ error: 'Sesión expirada' });
+    }
+    req.userId = Number(payload.userId);
+    next();
+  } catch {
     return res.status(401).json({ error: 'No autenticado' });
   }
-  req.userId = Number(payload.userId);
-  next();
 }
