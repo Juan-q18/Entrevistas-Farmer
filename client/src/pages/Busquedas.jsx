@@ -166,7 +166,7 @@ export default function BusquedasPage() {
       const r = await api(url, {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...draft, keywords: keywordChips.join(' ') })
+        body: JSON.stringify({ ...draft, keywords: keywordChips.join(',') })
       });
       const body = await parseJson(r) ?? {};
       if (!r.ok) throw new Error(body.error ?? 'Error al guardar');
@@ -192,7 +192,7 @@ export default function BusquedasPage() {
       experienceLevels: s.experienceLevels, jobTypes: s.jobTypes, workTypes: s.workTypes, countries: s.countries,
       timePosted: s.time_posted, companyId: s.company_id, remoteOnly: s.remoteOnly, active: s.active
     });
-    setKeywordChips(s.keywords ? String(s.keywords).split(/\s+/).filter(Boolean) : []);
+    setKeywordChips(s.keywords ? String(s.keywords).split(',').map((k) => k.trim()).filter(Boolean) : []);
     setKwInput('');
     setSuggestions([]);
     setShowForm(true);
@@ -245,7 +245,7 @@ export default function BusquedasPage() {
 
   const filterSummary = (s) => {
     const parts = [];
-    if (s.keywords) parts.push(s.keywords);
+    if (s.keywords) parts.push(String(s.keywords).split(',').filter(Boolean).join(' '));
     if (s.location) parts.push(s.location);
     if (s.countries?.length) {
       const labels = COUNTRIES.filter((o) => s.countries.includes(o.value)).map((o) => o.label);
@@ -340,7 +340,7 @@ export default function BusquedasPage() {
                   </div>
                 )}
               </div>
-              <span className="mt-1 block text-[11px] text-slate-400">Elegí puestos del listado o escribilos y enter. Cada keyword se busca junto a las demás.</span>
+              <span className="mt-1 block text-[11px] text-slate-400">Elegí puestos del listado o escribilos y enter. Cada chip es una keyword completa: "soporte técnico" va junto y no se separa.</span>
             </div>
             <div className="sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Nivel de experiencia</span>

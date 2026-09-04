@@ -181,19 +181,39 @@ export default function OfertasPage() {
             {busy ? 'Actualizando…' : '⟳ Actualizar ofertas'}
           </button>
           <button
-            className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+            className="rounded-md border border-orange-300 px-3 py-2 text-sm font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50"
             onClick={async () => {
-              const seccion = statusFilter === 'todas'
-                ? 'TODAS las ofertas'
-                : `las ofertas "${STATUSES.find((s) => s.value === statusFilter)?.label ?? statusFilter}"`;
-              if (!confirm(`Esto eliminará ${seccion} de tu cuenta. Esta acción no se puede deshacer.\n\n¿Continuar?`)) return;
+              const label = STATUSES.find((s) => s.value === statusFilter)?.label ?? statusFilter;
+              const n = count(statusFilter);
+              if (!confirm(`Se eliminarán ${n} oferta(s) de la sección "${label}". Esta acción no se puede deshacer.\n\n¿Continuar?`)) return;
               setBusy(true);
               try {
-                const url = statusFilter === 'todas' ? '/api/jobs' : `/api/jobs?status=${encodeURIComponent(statusFilter)}`;
-                const r = await api(url, { method: 'DELETE' });
+                const r = await api(`/api/jobs?status=${encodeURIComponent(statusFilter)}`, { method: 'DELETE' });
                 const body = await parseJson(r);
                 if (!r.ok) throw new Error(body.error ?? 'Error');
-                setToast(`✓ ${body.deleted} oferta(s) eliminada(s) de la sección actual`);
+                setToast(`✓ ${body.deleted} oferta(s) eliminada(s) de "${label}"`);
+                load();
+              } catch (e) {
+                setError(e.message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+            disabled={busy || statusFilter === 'todas'}
+            title={statusFilter === 'todas' ? 'Elegí una sección específica (Nueva, Aplicada, etc.)' : `Borrar solo las ofertas ${STATUSES.find((s) => s.value === statusFilter)?.label ?? ''}`}
+          >
+            🗑 Borrar sección
+          </button>
+          <button
+            className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+            onClick={async () => {
+              if (!confirm('Esto eliminará TODAS las ofertas de tu cuenta. Esta acción no se puede deshacer.\n\n¿Continuar?')) return;
+              setBusy(true);
+              try {
+                const r = await api('/api/jobs', { method: 'DELETE' });
+                const body = await parseJson(r);
+                if (!r.ok) throw new Error(body.error ?? 'Error');
+                setToast(`✓ ${body.deleted} oferta(s) eliminada(s) de tu cuenta`);
                 load();
               } catch (e) {
                 setError(e.message);

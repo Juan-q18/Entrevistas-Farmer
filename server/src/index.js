@@ -398,8 +398,12 @@ app.post('/api/jobs/fetch', requireAuth, async (req, res) => {
     const forceRemote = !!search.remoteOnly;
     let truncated = false;
     const variants = [];
+    // las keywords se guardan con coma como separador interno de chips;
+    // LinkedIn busca texto libre, así que se pasan a espacio
+    const normalizedKeywords = String(search.keywords ?? '').split(',').filter(Boolean).join(' ');
+    const base = normalizedKeywords || search.keywords || '';
     if (forceRemote) {
-      const baseKeywords = search.keywords ? `${search.keywords} remote` : 'remote';
+      const baseKeywords = base ? `${base} remote` : 'remote';
       variants.push({ ...search, keywords: baseKeywords, workTypes: ['2'], location: '', geoId: '92000000' });
     } else {
       const countryList = expandCountries(search.countries ?? []);
@@ -408,11 +412,11 @@ app.post('/api/jobs/fetch', requireAuth, async (req, res) => {
       if (sliced.length) {
         for (const c of sliced) {
           const manual = search.workTypes?.length ? search.workTypes : [workTypeForCountry(c.code)];
-          variants.push({ ...search, geoId: c.geoId, workTypes: manual, location: '' });
+          variants.push({ ...search, keywords: base, geoId: c.geoId, workTypes: manual, location: '' });
         }
       } else {
         const manual = search.workTypes?.length ? search.workTypes : (search.geoId ? search.workTypes : []);
-        variants.push({ ...search, workTypes: manual });
+        variants.push({ ...search, keywords: base, workTypes: manual });
       }
     }
 
